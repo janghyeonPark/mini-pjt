@@ -71,10 +71,18 @@ POST /query   {"question": "..."}
 - 채점 스크립트(`ref/run_eval.py` 구조 참고)는 문항마다 에이전트를 실행하고 **코드로** 판정한다:
   - `expected_tools` → 콜백으로 수집한 실제 호출 도구와 비교
   - `forbidden` → 답변에 포함되면 실패
-  - `expected_traits` → 답변과 나란히 기록 (필요하면 `ref/llm_judge.py` 방식의 LLM 심사를 덧붙임)
+  - `expected_traits` → **LLM-as-Judge** 로 판정 (`ref/llm_judge.py` 구조: judge 모델·루브릭 상수 고정, pydantic 결과 `{score 1~5, is_met, missing, reasoning}`). judge 모델은 라운드가 바뀌어도 바꾸지 않는다. 사람은 실패·애매 문항만 확인한다
   - 카테고리별·전체 통과율을 출력하고 `evaluation/round{N}_report.md` 로 저장
 - RAG 품질 지표: `context_recall`, `context_precision`, `faithfulness`, `answer_relevancy` 를 `ragas` 로 산출해 리포트와 README에 기록 (평가용 LLM·임베딩도 위 Bedrock 모델을 `LangchainLLMWrapper`/`LangchainEmbeddingsWrapper` 로 래핑해 쓴다).
   - 호환 이슈: ragas 0.4.3 은 `langchain_community.chat_models.vertexai.ChatVertexAI`, `langchain_community.llms.VertexAI` 를 import 하는데 설치된 langchain-community 0.4.x 에는 없다. `import ragas` **전에** 두 이름을 빈 클래스로 `sys.modules` / 모듈 속성에 주입하는 shim을 둔다 (VertexAI는 쓰지 않으므로 동작에 영향 없음).
+- 라운드 리포트 `evaluation/round{N}_report.md` 양식 (매 라운드 같은 항목):
+  1. 실행 정보: 실행 일시, 데이터 기준일, 에이전트 모델, judge 모델
+  2. 인-아웃 세트 통과율: 전체, 카테고리별 (목표 15건 중 12건 대비)
+  3. 수치 정확도, 정책 위반 건수
+  4. LLM 심사: 평균 점수, 문항별 점수
+  5. RAGAS 4지표 (목표값 대비)
+  6. 실패 문항 목록과 원인 진단 (답변 문제 / 판정 기준 문제)
+  7. 이번 라운드 수정 사항과 이전 라운드 대비 변화 (2차부터)
 - 개선 루프: 채점 → 실패 문항 **하나** 선택 → 원인이 답변인지 판정 기준인지 진단 → **한 가지만** 수정 → 재채점. 전부 통과하거나 3회 반복하면 멈추고 무엇을 고쳤는지 정리한다. 라운드 간 개선폭을 리포트에 명시한다.
 - 시도했다가 버린 접근과 그 이유는 README의 회고 섹션에 쓸 수 있도록 그때그때 메모해 둔다.
 
@@ -100,7 +108,12 @@ pip install -r requirements.txt
 - 사용 가능한 Bedrock 모델 ID (이 목록 밖의 모델은 쓰지 않는다):
   - Claude: `us.`/`global.anthropic.claude-sonnet-4-5-20250929-v1:0`, `us.`/`global.anthropic.claude-sonnet-4-6`, `us.`/`global.anthropic.claude-haiku-4-5-20251001-v1:0`
   - Nova: `us.amazon.nova-pro-v1:0`, `us.amazon.nova-lite-v1:0`, `us.`/`global.amazon.nova-2-lite-v1:0`
-- 임베딩: `BedrockEmbeddings(model_id="amazon.titan-embed-text-v2:0", region_name="us-east-1")`
+- 임베딩: `BedrockEmbeddings(model_id="amazon.titan-embed-text-v2:0", region_name="us-east-1")` (1024차원, 호출 확인됨)
+- **Bedrock 일일 토큰 한도**(공용 계정, `ThrottlingException: Too many tokens per day`)에 실제로 걸린 적이 있다. 대응:
+  - 모델 역할 분리: 에이전트 = Sonnet 4.5, 가드레일 LLM 판별·LLM-as-Judge·RAGAS = Haiku 4.5 (`us.anthropic.claude-haiku-4-5-20251001-v1:0`). 모델 ID는 설정 상수 한곳에 둔다
+  - Bedrock 호출은 지수 백오프로 재시도한다
+  - 평가 스크립트는 문항별 결과를 즉시 파일에 저장하고, 재실행 시 끝난 문항은 건너뛴다
+  - 개발 중 확인은 문항 1~2개만 돌리고, 15문항 전체 실행은 라운드 리포트를 낼 때만 한다
 - 실행은 레포 루트에서 `python src/agent.py` 처럼 한다. 데이터 경로는 `__file__` 기준으로 잡아 실행 위치에 의존하지 않게 한다.
 
 ## ref 참고 대응표
@@ -119,6 +132,7 @@ pip install -r requirements.txt
 
 ## 코드 관례
 
+- 비교표(`comparison_table`)는 **도구 결과로 코드가 직접 만든다**. LLM은 설명 문장(`answer`)만 쓰고 숫자를 옮겨 적지 않는다 (반올림·전사 오류로 수치 정확도가 깨지는 것을 막기 위함)
 - `ChatBedrockConverse` 의 `content` 는 블록 리스트일 수 있으므로 항상 `get_text(message)` 헬퍼로 텍스트를 꺼낸다.
 - Supervisor 그래프는 미들웨어를 받지 않는다 → 가드레일은 그래프 호출 **전에** 따로 실행한다.
 - MCP 도구를 쓰면 앱 생성·호출 모두 async (`await build_app()`, `ainvoke`).
