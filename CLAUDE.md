@@ -37,6 +37,7 @@ src/retriever.py     RAG 파이프라인 (적재, 검색)
 src/...              그 외 역할별 모듈 (가드레일, 트레이서, API 서버 등). 파일 하나에 역할 하나
 data/                사용한 문서와 데이터 (더미 생성 스크립트 포함 가능)
 evaluation/test_queries.csv     인-아웃 세트 (아래 스키마)
+evaluation/ragas_references.csv RAGAS 정답 문장 (id, reference). test_queries.csv 컬럼은 7개 고정이라 분리
 evaluation/round{N}_report.md   N차 자체 평가 결과
 SERVICE.md, README.md, requirements.txt
 Dockerfile, run.sh   선택
@@ -63,6 +64,7 @@ POST /query   {"question": "..."}
 - `expected_traits`, `forbidden`, `expected_tools` 안의 여러 값은 **세미콜론(`;`)** 으로 구분. 여러 줄 필드는 큰따옴표로 감싼다.
 - 15~20건 권장 (최소 10건). 통과한 문항도 지우지 않는다 (회귀 감지용).
 - guardrail 문항은 `SERVICE.md` 4번 정책과 1:1로 맞춘다.
+- `expected_tools` 에 쓰는 도구 이름은 고정이다. `src/tools.py` 의 도구 이름도 이와 같아야 한다: `search_etfs`, `compare_asset_classes`, `calc_performance`, `check_pension_eligibility`, `retrieve_docs`
 
 ## 평가와 개선 루프
 
