@@ -24,3 +24,13 @@ langgraph-supervisor
 mcp==1.30.0
 fastmcp==2.13.0
 langchain-mcp-adapters==0.3.2
+
+# API 서버
+fastapi
+uvicorn
+
+# 평가
+ragas
+
+# 데이터 수집 (국내 상장 ETF 시세·정보)
+pykrx
