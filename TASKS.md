@@ -119,9 +119,9 @@
 
 ## 묶음 5 · 트레이스와 API
 
-- [ ] **5-1. 트레이스 수집**
+- [x] **5-1. 트레이스 수집**
   `src/tracer.py`: 콜백으로 LLM·도구 호출을 `{step, input, output}` 리스트로 수집 + JSONL 기록 (`ref/local_tracer.py` 구조).
-  - 확인: 문항 1 실행 후 trace에 `search_etfs` → `check_pension_eligibility` → `calc_performance` 순서가 남음
+  - 확인: 문항 1 실행 후 trace에 `search_etfs` → `calc_performance` 순서와 llm 단계가 남음 (문항 1은 `check_pension_eligibility` 를 부르지 않음 — 개선 루프 후보). 문항 3 의 `contexts` 에 `pension_rules.md` 조각. `logs/trace.jsonl` 에 개인정보 원문 없음
 
 - [ ] **5-2. API 서버**
   `src/api.py`: FastAPI `POST /query` → `{answer, contexts, trace}`. 가드레일 → 에이전트 순서로 호출.

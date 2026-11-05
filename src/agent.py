@@ -2,6 +2,7 @@
 import json
 import re
 import sys
+import uuid
 
 from botocore.config import Config
 from langchain.agents import create_agent
@@ -18,6 +19,7 @@ from guards import (
 )
 from metrics import RETURN_DEFINITION, VOLATILITY_DEFINITION
 from tools import DISCLAIMER, TOOLS
+from tracer import Tracer
 
 # Bedrock 호출은 botocore 적응형 재시도(지수 백오프)로 감싼다
 BEDROCK_RETRY = Config(retries={"max_attempts": 6, "mode": "adaptive"})
@@ -175,16 +177,43 @@ def build_table(codes: list[str], perf: dict[str, dict]) -> list[TableRow]:
 
 def run(question: str, config: dict | None = None) -> FinalAnswer:
     """질문 하나를 에이전트로 처리해 구조화된 최종 답변을 반환한다."""
+    return _run(question, config)[0]
+
+
+def query(question: str) -> dict:
+    """API·평가용: 답변과 함께 실제 검색된 문서 조각(contexts)과 단계별 trace 를 반환한다."""
+    tracer = Tracer(trace_id=str(uuid.uuid4()))
+    fa, messages = _run(question, {"configurable": {"thread_id": tracer.trace_id}, "callbacks": [tracer]})
+    return {"answer": fa.answer, "contexts": collect_contexts(messages), "trace": tracer.steps,
+            "tools": tracer.tools, "result": fa}
+
+
+def collect_contexts(messages) -> list[dict]:
+    """retrieve_docs 결과(artifact)에서 검색된 문서 조각 {doc_id, text} 를 중복 없이 모은다."""
+    seen, contexts = set(), []
+    for m in messages:
+        if isinstance(m, ToolMessage) and m.name == "retrieve_docs":
+            for c in m.artifact or []:
+                if (c["doc_id"], c["text"]) not in seen:
+                    seen.add((c["doc_id"], c["text"]))
+                    contexts.append(c)
+    return contexts
+
+
+def _run(question: str, config: dict | None) -> tuple[FinalAnswer, list]:
+    """에이전트 실행 → 구조화 → 코드 생성 비교표. (최종 답변, 메시지 목록)을 반환한다."""
     # 개인정보는 미들웨어가 아니라 여기서 먼저 마스킹한다. 그래프 상태·trace 콜백에 원문이 들어가지 않게 하기 위함
     question = mask_pii(question)
     result = agent.invoke({"messages": [HumanMessage(question)]}, config=config)
     messages = result["messages"]
     draft = get_text(messages[-1])
     if draft in (REFUSAL_MESSAGE, BLOCKED_OUTPUT_MESSAGE):  # 가드레일 고정 문구는 구조화 단계에서 바꾸지 않고 그대로 낸다
-        return FinalAnswer(answer=draft, comparison_table=[], sources=[], base_date=BASE_DATE)
+        return FinalAnswer(answer=draft, comparison_table=[], sources=[], base_date=BASE_DATE), messages
     perf = collect_performance(messages)
 
-    structured = structurer.invoke(STRUCTURE_PROMPT.format(question=question, draft=draft, codes=list(perf)))
+    # 구조화 호출에도 config(콜백)를 넘겨 trace 에 남긴다
+    structured = structurer.invoke(STRUCTURE_PROMPT.format(question=question, draft=draft, codes=list(perf)),
+                                   config={"callbacks": (config or {}).get("callbacks", [])})
     codes = [c for c in structured.table_codes if c in perf] or list(perf)
     table = build_table(codes, perf)
 
@@ -209,7 +238,7 @@ def run(question: str, config: dict | None = None) -> FinalAnswer:
     sources += doc_sources
     if doc_sources:  # 근거 문서는 구조화 단계에서 빠지지 않도록 코드가 붙인다
         answer += "\n\n[근거 문서] " + " / ".join(s.removeprefix("문서: ") for s in doc_sources)
-    return FinalAnswer(answer=answer, comparison_table=table, sources=sources, base_date=BASE_DATE)
+    return FinalAnswer(answer=answer, comparison_table=table, sources=sources, base_date=BASE_DATE), messages
 
 
 def print_answer(fa: FinalAnswer) -> None:

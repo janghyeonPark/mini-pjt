@@ -76,8 +76,8 @@ def _label(d: Document) -> str:
     return f"{d.metadata['source']} > {section}" if section else d.metadata["source"]
 
 
-@tool
-def retrieve_docs(query: str) -> str:
+@tool(response_format="content_and_artifact")
+def retrieve_docs(query: str) -> tuple[str, list[dict]]:
     """연금저축 ETF 매매 규칙과 기초지수 설명 문서에서 관련 내용을 검색한다.
 
     "레버리지 ETF를 연금저축에서 왜 못 사?", "KOFR가 뭐야?", "환헤지(H)는 뭐가 달라?"처럼
@@ -87,13 +87,15 @@ def retrieve_docs(query: str) -> str:
     Args:
         query: 찾을 내용 (예: '레버리지 연금저축', 'KOFR 정의', '환헤지 차이')
     """
+    # 모델에는 출처가 붙은 텍스트를, artifact 로는 API contexts 용 문서 조각 원본을 넘긴다
     try:
         docs = search(query)
     except Exception as e:  # 검색 실패도 예외 대신 안내 메시지로 돌려준다
-        return f"문서 검색 실패 ({type(e).__name__}). 문서 근거 없이 지어내지 말고 검색 실패로 안내할 것"
+        return f"문서 검색 실패 ({type(e).__name__}). 문서 근거 없이 지어내지 말고 검색 실패로 안내할 것", []
     if not docs:
-        return "관련 문서를 찾지 못했습니다."
-    return "\n\n".join(f"[출처: {_label(d)}]\n{d.page_content}" for d in docs)
+        return "관련 문서를 찾지 못했습니다.", []
+    text = "\n\n".join(f"[출처: {_label(d)}]\n{d.page_content}" for d in docs)
+    return text, [{"doc_id": _label(d), "text": d.page_content} for d in docs]
 
 
 if __name__ == "__main__":

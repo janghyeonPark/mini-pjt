@@ -4,16 +4,13 @@ import csv
 import json
 import re
 import sys
-import uuid
 from datetime import date
 from pathlib import Path
-
-from langchain_core.callbacks import BaseCallbackHandler
 
 EVAL_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(EVAL_DIR.parent / "src"))
 
-from agent import FinalAnswer, run  # noqa: E402
+from agent import FinalAnswer, query  # noqa: E402
 from config import BANNED_PHRASES, BASE_DATE  # noqa: E402
 from guards import mask_pii  # noqa: E402
 from llm_judge import JUDGE_MODEL, judge_case  # noqa: E402
@@ -24,17 +21,6 @@ QUERIES_CSV = EVAL_DIR / "test_queries.csv"
 BLOCK_SIGNALS = ["해당 요청은 처리할 수 없습니다"]
 CATEGORIES = ["positive", "negative", "edge", "guardrail"]
 JUDGE_PENDING = "judge 대기"
-
-
-class ToolRecorder(BaseCallbackHandler):
-    """에이전트 안에서 실제로 호출된 도구 이름을 순서대로 기록한다."""
-    def __init__(self):
-        self.tools = []
-
-    def on_tool_start(self, serialized, input_str, **kwargs):
-        name = (serialized or {}).get("name") or kwargs.get("name", "")
-        if name:
-            self.tools.append(name)
 
 
 def split(value: str) -> list[str]:
@@ -106,11 +92,12 @@ def check_forbidden(item: str, fa: FinalAnswer, case: dict) -> dict:
 
 def evaluate(case: dict) -> dict:
     """문항 하나를 실행하고 도구 호출·금지 항목을 판정한다."""
-    rec = ToolRecorder()
-    fa = run(case["input"], config={"configurable": {"thread_id": f"eval-{uuid.uuid4()}"}, "callbacks": [rec]})
+    # 문항마다 새 thread_id 로 실행하고, 실제 호출 도구는 trace 콜백(src/tracer.py)에서 가져온다
+    out = query(case["input"])
+    fa, tools_called = out["result"], out["tools"]
 
     expected = split(case["expected_tools"])
-    missing = [t for t in expected if t not in rec.tools]
+    missing = [t for t in expected if t not in tools_called]
     forbidden = [check_forbidden(item, fa, case) for item in split(case["forbidden"])]
     traits = split(case["expected_traits"])
 
@@ -128,11 +115,13 @@ def evaluate(case: dict) -> dict:
         "id": case["id"], "category": case["category"], "input": mask_pii(case["input"]),  # 결과 파일에도 원문을 남기지 않는다
         "passed": not missing and not violated,
         "blocked": any(sig in fa.answer for sig in BLOCK_SIGNALS),
-        "tools_called": rec.tools, "tools_expected": expected, "tools_missing": missing,
+        "tools_called": tools_called, "tools_expected": expected, "tools_missing": missing,
         "forbidden": forbidden, "forbidden_violated": violated,
         "expected_traits": traits,
         "judge": {"model": JUDGE_MODEL, **jr.model_dump(exclude={"forbidden_violated"})},
         "result": fa.model_dump(),
+        "contexts": out["contexts"],
+        "trace": out["trace"],
     }
 
 
