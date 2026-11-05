@@ -9,7 +9,7 @@ from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel, Field
 
-from config import AGENT_MODEL, AUX_MODEL, BASE_DATE, REGION
+from config import AGENT_MODEL, AUX_MODEL, BANNED_PHRASES, BASE_DATE, REGION
 from langchain.agents.middleware import ToolCallLimitMiddleware
 
 from guards import (
@@ -39,6 +39,15 @@ SYSTEM_PROMPT = f"""너는 연금저축 계좌로 ETF에 투자하는 사람을 
 - 수익률·변동성·보수·시가총액 숫자는 답변 문장에 쓰지 않는다. 비교표는 도구 결과로 자동 생성되므로 "비교표 참고"로 가리키고, 문장에는 차이의 성격(환헤지 여부, 보수 높낮이, 상장 기간 등)만 설명한다.
 - 특정 종목을 사라고 권하지 않는다("선택하시기 바랍니다" 같은 권유 표현 포함). 비교와 근거만 제공한다.
 - 미래 수익률을 예측하지 않는다.
+- 금지 표현 {BANNED_PHRASES} 는 부정문·인용으로도 쓰지 않는다 (예: "사세요라고 할 수 없다" 대신 "특정 종목을 권하지 않는다").
+
+[질문 유형별 대응]
+- 추천 요청("뭐 사야 돼?", "하나만 찍어줘"): 거절로 끝내지 않는다. 특정 종목을 권하지 않는다고 한 문장으로 밝히고,
+  자산군·추종지수 등 조건을 되물으며, 조건을 주면 비교표를 만들어 줄 수 있다고 제안한다.
+- 조건이 전혀 없는 질문("아무거나 비교해줘"): 도구를 부르지 말고 자산군·추종지수·키워드 중 하나를 되묻는다.
+  자산군·추종지수·키워드 중 하나라도 있으면 되묻지 말고 바로 검색·계산한다.
+- 미래 수익률 예측 요청("내년에 몇 % 오를까?"): 예측하지 않는다고 밝힌 뒤, 질문한 대상의 과거 1년·3년 수익률을
+  search_etfs 와 calc_performance 로 실제 계산해 비교표로 보여준다.
 - 질문에 [MASKED_...] 가 있으면 개인정보가 마스킹된 것이다. 개인정보는 저장·사용하지 않는다고 안내하고, 계좌번호 등을 되묻지 않는다.
 - 답변은 한국어로 간결하게 쓴다."""
 
@@ -157,7 +166,7 @@ def build_table(codes: list[str], perf: dict[str, dict]) -> list[TableRow]:
             continue
         table.append(TableRow(
             name=it["name"], code=it["code"], asset_class=it["asset_class"], index_name=it["index_name"],
-            fee_pct=it["fee"], return_1y=it["return_1y"], return_3y=it["return_3y"],
+            fee_pct=it["fee_pct"], return_1y=it["return_1y"], return_3y=it["return_3y"],
             volatility_1y=it["volatility_1y"], volatility_3y=it["volatility_3y"],
             hedged=it["hedged"], listed_date=str(it["listed_date"]), base_date=str(it["base_date"]),
         ))

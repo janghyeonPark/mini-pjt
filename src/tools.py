@@ -44,7 +44,9 @@ def _resolve(code_or_name: str):
 def _summary(row) -> dict:
     return {
         "code": row["code"], "name": row["name"], "asset_class": row["asset_class"],
-        "index_name": row["index_name"], "fee": row["fee"], "hedged": bool(row["hedged"]),
+        # 총보수는 이미 % 단위(0.006 = 연 0.006%). 단위 없는 숫자를 LLM이 비율로 읽어 100배 틀린 사례가 있어 단위를 붙인다
+        "index_name": row["index_name"], "fee_pct": row["fee"], "fee_text": f"연 {row['fee']:g}%",
+        "hedged": bool(row["hedged"]),
         "market_cap_억원": int(row["market_cap"]), "listed_date": row["listed_date"],
     }
 

@@ -111,7 +111,7 @@
   `OutputGuardrailMiddleware`: `after_model` 에서 최종 응답(도구 호출 없는 것)만 금지 표현(`config.BANNED_PHRASES`) 코드 검사 → 걸리면 1회 재생성 → 그래도 걸리면 고정 문구 (`ref/day5_practice/guards_output.py` 구조). `ToolCallLimitMiddleware`·`LoggingMiddleware`(토큰 사용량 기록)도 이때 붙인다.
   - 확인: 금지 표현을 넣은 가짜 답변으로 검사 함수 단위 확인. 문항 12·13 답변에 금지 표현 0개
 
-- [ ] **4-4. 추천 요청·조건 없는 질문 대응**
+- [x] **4-4. 추천 요청·조건 없는 질문 대응**
   시스템 프롬프트에 "추천 대신 조건을 되물어 비교표 제시", "조건이 비어 있을 때만 되묻기", "도구 결과만 근거" 반영.
   - 확인: 문항 10·12 → 조건 되묻기, 특정 종목 권유 없음
 
