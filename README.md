@@ -52,15 +52,16 @@ Invoke-RestMethod -Uri http://localhost:8000/query -Method Post -ContentType "ap
 ```
 
 ## RAGAS 평가 결과
-- context_recall: (6-2 예정)
-- context_precision:
-- faithfulness:
-- answer_relevancy:
+2차 라운드 기준, 문서 근거 문항 4개(3·5·6·11) 평균. 평가 LLM Haiku 4.5, 임베딩 Titan v2
+- context_recall: 0.92 (목표 0.70 이상)
+- context_precision: 1.00
+- faithfulness: 0.54 (목표 0.80 미달. RAGAS contexts 에 문서 조각만 들어가 도구 결과 근거 문장이 근거 없음으로 집계됨. 문서만으로 답하는 문항 3 은 0.92)
+- answer_relevancy: 0.76
 
 ## 인-아웃 세트 통과율 (자체 평가)
 - 1차 (Day 9 종료): 10 / 15 통과
-- 2차 (Day 10 개선 후): XX / 15 통과
-- 개선폭: +XX 건 (주요 개선 사항: ...)
+- 2차 (Day 10 개선 후): 13 / 15 통과
+- 개선폭: +3 건 (주요 개선 사항: 종목명이 있으면 먼저 도구로 조회 · 지수가 다른 비교는 문서로만 설명 → 답변 개선 +2, `search_etfs` 가 매수 가능 판정을 포함하므로 기대 도구 기준 수정 +2, 수치 검사 오탐 -1. 상세는 `evaluation/round2_report.md`)
 
 ## 트라이앤에러 회고
 <!-- 작업 중 메모. 제출 전에 세 항목으로 정리한다 -->

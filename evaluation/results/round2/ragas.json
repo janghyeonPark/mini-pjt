@@ -1,0 +1,26 @@
+{
+  "3": {
+    "context_recall": 1.0,
+    "context_precision": 1.0,
+    "faithfulness": 0.9231,
+    "answer_relevancy": 0.6465
+  },
+  "5": {
+    "context_recall": 1.0,
+    "context_precision": 1.0,
+    "faithfulness": 0.3333,
+    "answer_relevancy": 0.8478
+  },
+  "6": {
+    "context_recall": 0.6667,
+    "context_precision": 1.0,
+    "faithfulness": 0.3529,
+    "answer_relevancy": 0.7726
+  },
+  "11": {
+    "context_recall": 1.0,
+    "context_precision": 1.0,
+    "faithfulness": 0.5455,
+    "answer_relevancy": 0.7887
+  }
+}
