@@ -125,7 +125,10 @@ def calc_performance(codes: list[str]) -> str:
         if row is None:
             items.append({"query": key, "error": f"종목을 찾을 수 없음. 비슷한 종목: {similar or '없음'}"})
             continue
-        m = calc_metrics(row["code"], row["listed_date"])
+        try:
+            m = calc_metrics(row["code"], row["listed_date"])
+        except Exception as e:  # 시세 조회 실패도 그래프를 죽이지 않고 안내 메시지로 돌려준다
+            m = {"code": row["code"], "error": f"시세 조회 실패 ({type(e).__name__}). 수치를 지어내지 말고 조회 실패로 안내할 것"}
         items.append({**_summary(row), **m})
     return _to_json({
         "base_date": BASE_DATE,

@@ -9,8 +9,9 @@
 - Day 2: RAG — (TASKS 3-3 예정) 매매 규칙·지수 설명 문서 하이브리드 검색 (벡터 + BM25 `kiwipiepy`)
 - Day 3: ReAct 에이전트 — 도구 3개(검색·매수 가능 판정·수익률 계산)를 에이전트가 골라 호출
 - Day 4: 도구 설계 — 독스트링에 "언제 쓰고 언제 쓰지 않는지", 못 찾으면 비슷한 종목·가능한 자산군을 안내
-- Day 5: 가드레일 — (TASKS 4 예정)
-- Day 6: (미정)
+- Day 4: 도구 에러 처리 — 시세 조회 실패도 예외 대신 "지어내지 말고 조회 실패로 안내" 메시지로 반환
+- Day 5: `create_agent` + 미들웨어 — (TASKS 4 예정) 입력·출력 가드레일, 로깅. 개인정보 마스킹은 trace에 원문이 남지 않도록 호출 전에 적용
+- Day 6: (적용 안 함) Supervisor — 도구 5개라 단일 에이전트로 충분. HITL(Day 5)도 매매 주문을 빼서 승인할 위험 작업이 없음
 - Day 7: LLM-as-Judge·누적 평가셋 — 고정 루브릭 judge(Haiku) + 코드 판정 채점 스크립트
 
 ## 아키텍처
@@ -67,7 +68,7 @@ python evaluation/run_eval.py --round 1          # 라운드 전체 채점
   - 평가 모드는 후보 19종목만 시세가 있음. 평소 모드(실시간 조회)는 TASKS 8-1
 
 ## 핵심 코드 위치
-- `src/agent.py:92` — 메인 에이전트 그래프
+- `src/agent.py:92` — 메인 에이전트 (`create_agent`)
 - `src/agent.py:127` — `run()`: 에이전트 → 구조화 → 코드 생성 비교표
 - `src/tools.py` — 도메인 도구 (`search_etfs:52`, `check_pension_eligibility:93`, `calc_performance:112`)
 - `src/retriever.py` — RAG 파이프라인 (예정)

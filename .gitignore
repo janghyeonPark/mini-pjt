@@ -4,3 +4,5 @@
 __pycache__/
 # 수업 참고 자료 (로컬 전용)
 ref/
+# 개발 중 채점 결과 (라운드 결과는 커밋)
+evaluation/results/round0/

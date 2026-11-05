@@ -83,7 +83,7 @@
   - 확인: 사용자 검토 완료. 테스트 문항 5·6·11 에 필요한 내용이 들어 있음
 
 - [ ] **3-3. 하이브리드 검색과 `retrieve_docs`**
-  `src/retriever.py`: 문서 분할 → Chroma(Titan 임베딩) + BM25(`kiwipiepy`) 결합, `[출처: 파일명]` 포함 반환. 도구 등록.
+  `src/retriever.py`: `MarkdownHeaderTextSplitter` 로 헤더 단위 분할 → Chroma(Titan 임베딩) + `BM25Retriever`(kiwi 토크나이저) → `EnsembleRetriever` 결합 (`ref/day2_practice/hybrid.py` 구조, 가중치 0.3/0.7에서 시작), `[출처: 파일명]` 포함 반환. 도구 등록.
   - 확인: "KOFR" 검색 1위가 `index_guide.md` 의 KOFR 단락, "레버리지 연금저축" 검색 1위가 `pension_rules.md`
 
 - [ ] **3-4. 문서 기반 매수 가능 규칙 추가**
@@ -98,16 +98,16 @@
 
 ## 묶음 4 · 가드레일
 
-- [ ] **4-1. 입력 가드레일**
-  `src/guards.py`: 정규식 1차 → Haiku 2차 인젝션 판별, 고정 거절 문구 (`ref/guards_input.py`, `ref/guards_refusal.py` 구조). 에이전트 호출 전에 실행.
-  - 확인: 문항 15 → 고정 거절 문구. 문항 1 → 정상 통과 (오탐 없음)
+- [ ] **4-1. 입력 가드레일 (미들웨어)**
+  `src/guards.py`: 정규식 1차 → Haiku 2차 인젝션 판별, 고정 거절 문구 (`ref/guards_input.py`, `ref/guards_refusal.py` 구조). `InputGuardrailMiddleware` 로 감싸 `create_agent(middleware=[...])` 에 붙인다 — 차단 시 모델 호출 없이 거절 (`ref/day5_practice/guards.py` 구조). 거절 문구를 `run_eval.py` 차단 신호에도 반영.
+  - 확인: 문항 15 → 고정 거절 문구, 에이전트 도구 호출 0회. 문항 1 → 정상 통과 (오탐 없음)
 
-- [ ] **4-2. 개인정보 마스킹**
-  입력 단계에서 계좌번호·주민등록번호·전화번호 마스킹. 이후 답변·trace·로그에는 마스킹된 값만 흐른다.
+- [ ] **4-2. 개인정보 마스킹 (호출 전)**
+  `src/guards.py` 에 계좌번호·주민등록번호·전화번호 마스킹 함수. 미들웨어가 아니라 `run()` 에서 에이전트 호출 **전에** 적용해 답변·trace·로그에 마스킹된 값만 흐르게 한다.
   - 확인: 문항 14 실행 후 답변과 저장 파일 어디에도 `123-45-678901` 이 없음
 
-- [ ] **4-3. 출력 가드레일**
-  금지 표현(매수 권유·미래 예측) 코드 검사 → 걸리면 1회 재생성 → 그래도 걸리면 고정 문구.
+- [ ] **4-3. 출력 가드레일 (미들웨어)**
+  `OutputGuardrailMiddleware`: `after_model` 에서 최종 응답(도구 호출 없는 것)만 금지 표현(`config.BANNED_PHRASES`) 코드 검사 → 걸리면 1회 재생성 → 그래도 걸리면 고정 문구 (`ref/day5_practice/guards_output.py` 구조). `ToolCallLimitMiddleware`·`LoggingMiddleware`(토큰 사용량 기록)도 이때 붙인다.
   - 확인: 금지 표현을 넣은 가짜 답변으로 검사 함수 단위 확인. 문항 12·13 답변에 금지 표현 0개
 
 - [ ] **4-4. 추천 요청·조건 없는 질문 대응**

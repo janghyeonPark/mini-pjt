@@ -3,9 +3,9 @@ import json
 import sys
 
 from botocore.config import Config
+from langchain.agents import create_agent
 from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage, ToolMessage
-from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
 
 from config import AGENT_MODEL, AUX_MODEL, BASE_DATE, REGION
@@ -89,7 +89,7 @@ def make_llm(model: str) -> ChatBedrockConverse:
     return ChatBedrockConverse(model=model, region_name=REGION, temperature=0, config=BEDROCK_RETRY)
 
 
-agent = create_react_agent(make_llm(AGENT_MODEL), TOOLS, prompt=SYSTEM_PROMPT, name="etf_agent")
+agent = create_agent(make_llm(AGENT_MODEL), TOOLS, system_prompt=SYSTEM_PROMPT, name="etf_agent")
 structurer = make_llm(AUX_MODEL).with_structured_output(AnswerDraft)
 
 

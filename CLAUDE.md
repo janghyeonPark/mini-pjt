@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `SERVICE.md` | **무엇을 왜** 만드는가 (사용자·문제·가치·확장 관점·도구/데이터·정책·성공 기준). 판단 기준이 되는 유일한 문서 |
 | `TASKS.md` | 작업 목록. 한 번에 하나씩 처리 |
 | `CLAUDE.md` | **어떻게** 만드는가 (스택·구조·규약) |
-| `ref/` | 이전에 만든 완성 코드. **읽기 전용 참고 자료**, 수정하지 않는다 |
+| `ref/` | 수업 실습 코드 (`day1~6_practice/`, 루트 = Day 7 checkpoint). **읽기 전용 참고 자료**, 수정하지 않는다. 로컬 전용 (`.gitignore`) |
 
 ## 작업 규칙
 
@@ -100,7 +100,7 @@ POST /query   {"question": "..."}
 ## 핵심 코드 위치            `src/agent.py:NN` — 메인 에이전트 그래프, `src/tools.py` — 도메인 도구, `src/retriever.py` — RAG 파이프라인
 ```
 
-- Day별 패턴 대응 (`ref/README.txt` 기준): 2일차 RAG, 3일차 도구 호출, 4일차 MCP 서버, 5일차 입력 가드레일, 6일차 Supervisor 멀티 에이전트, 7일차 Plan-and-Execute·장기 기억·트레이스·LLM 심사·평가셋
+- Day별 패턴 대응 (`ref/day*_practice` 기준): 1일차 LLM 호출·LCEL·구조화 출력·도구 호출 결정 / 2일차 RAG(청킹·메타데이터·하이브리드 검색·출처 반환) / 3일차 LangGraph·ReAct / 4일차 도구 설계·도구 에러 처리·MCP·trace / 5일차 `create_agent` 미들웨어·입출력 가드레일·마스킹·HITL·체크포인터 / 6일차 Supervisor 멀티 에이전트·RAG 에이전트 / 7일차 Plan-and-Execute·장기 기억·트레이서·LLM 심사·누적 평가셋
 
 ## 적용할 패턴
 
@@ -134,7 +134,13 @@ pip install -r requirements.txt
 |---|---|---|
 | 더미 데이터 | `make_data.py` | 상수 리스트 → `BASE` 기준 JSON 생성 |
 | 도구 / MCP 서버 | `mcp_server.py` | 독스트링에 "언제 쓰고 / 언제 쓰지 않는지(대신 쓸 도구)" + `Args:`. 결과는 `json.dumps(..., ensure_ascii=False)`, 못 찾으면 가능한 값 목록을 안내 |
-| RAG 검색 | `final_scenario.py` `retrieve_docs` | `Chroma(...).as_retriever(k=3)` → `[출처: source]` 붙여 반환 |
+| 도구 에러 처리 | `day4_practice/tool_error.py` | 예외를 던지지 않고 다음 행동을 안내하는 메시지로 반환 |
+| 문서 분할 | `day2_practice/chunking_md.py`, `metadata.py` | `MarkdownHeaderTextSplitter([("#","title"),("##","section")])`, 파일별 메타데이터 부착 |
+| 하이브리드 검색 | `day2_practice/hybrid.py` | `BM25Retriever.from_documents(chunks, preprocess_func=korean_tokenizer)` (kiwi 품사 NNG·NNP·NNB·NR·NP·VV·VA·SL·SN) + 벡터 → `EnsembleRetriever(weights=[0.3, 0.7])` |
+| RAG 검색 도구 | `day6_practice/rag_agent.py`, `final_scenario.py` `retrieve_docs` | 검색 결과에 `[출처: source]` 붙여 반환, 결과 없으면 "찾지 못했습니다" |
+| 단일 에이전트 + 미들웨어 | `day5_practice/day5_final.py`, `guards.py` | `create_agent(model, tools, system_prompt, middleware=[InputGuardrail, ..., OutputGuardrail, Logging])` |
+| 출력 가드레일 | `day5_practice/guards_output.py` | `after_model` 에서 마지막 응답만 검사 (tool_calls 있는 응답은 건드리지 않음), 같은 `id` 로 교체 |
+| 로깅 | `day5_practice/logging_middleware.py` | `before_model`/`after_model` 에서 JSONL 기록, 토큰 사용량 포함 |
 | 멀티 에이전트 | `final_scenario.py` | `create_react_agent(llm, tools, prompt, name)` 하위 Agent + `create_supervisor(...).compile()`, `async def build_app()` |
 | 단계형 워크플로 | `plan_and_execute.py` | `TypedDict` State + structured output + `StateGraph` (planner → execute → replan ⟲ → finalize) |
 | 장기 기억 | `long_term_memory.py` | `InMemoryStore` 네임스페이스 `("users", user_id)` (라벨에 점 불가) |
@@ -146,7 +152,9 @@ pip install -r requirements.txt
 
 - 비교표(`comparison_table`)는 **도구 결과로 코드가 직접 만든다**. LLM은 설명 문장(`answer`)만 쓰고 숫자를 옮겨 적지 않는다 (반올림·전사 오류로 수치 정확도가 깨지는 것을 막기 위함)
 - `ChatBedrockConverse` 의 `content` 는 블록 리스트일 수 있으므로 항상 `get_text(message)` 헬퍼로 텍스트를 꺼낸다.
-- Supervisor 그래프는 미들웨어를 받지 않는다 → 가드레일은 그래프 호출 **전에** 따로 실행한다.
+- 에이전트는 `langchain.agents.create_agent` 로 만든다 (`langgraph.prebuilt.create_react_agent` 는 deprecated). 단일 에이전트라 가드레일은 Day 5 방식의 **미들웨어**로 붙인다. (Supervisor 그래프는 미들웨어를 받지 않으므로, Supervisor로 바꾸면 가드레일을 그래프 호출 전에 따로 실행한다)
+- 개인정보 마스킹만은 미들웨어가 아니라 `run()` 에서 에이전트 호출 **전에** 한다. `before_model` 시점엔 원문이 이미 그래프 상태와 trace 콜백에 들어가 있기 때문
+- HITL·Supervisor 는 쓰지 않는다: 매매 주문을 뺐으므로 승인할 위험 작업이 없고, 도구 5개라 단일 에이전트로 충분하다 (README 회고에 이유 기록)
 - MCP 도구를 쓰면 앱 생성·호출 모두 async (`await build_app()`, `ainvoke`).
 - 에이전트 프롬프트에는 "도구로 조회한 결과만 근거로 답하라, 없는 항목은 지어내지 말고 안내하라"를 넣는다.
 - 거절 문구를 바꾸면 채점 스크립트의 차단 신호도 같이 바꾼다.
