@@ -2,4 +2,5 @@
 .venv/
 .env
 __pycache__/
-.gjc/
+# 수업 참고 자료 (로컬 전용)
+ref/
