@@ -114,8 +114,8 @@ Invoke-RestMethod -Uri http://localhost:8000/query -Method Post -ContentType "ap
 - 화면의 대화 기록은 서버 메모리(`InMemorySaver`)에만 있어 재시작하면 사라진다.
 
 ## 핵심 코드 위치
-- `src/agent.py:114` — 메인 에이전트 그래프 (`create_agent` + 미들웨어 + 체크포인터)
-- `src/agent.py:215` — `_run()`: 마스킹 → 에이전트 → 구조화 → 코드 생성 비교표
+- `src/agent.py:117` — 메인 에이전트 그래프 (`create_agent` + 미들웨어 + 체크포인터)
+- `src/agent.py:218` — `_run()`: 마스킹 → 에이전트 → 구조화 → 코드 생성 비교표
 - `src/tools.py` — 도메인 도구 (`search_etfs:65`, `check_pension_eligibility:103`, `calc_performance:122`, `compare_asset_classes:154`)
 - `src/retriever.py` — RAG 파이프라인 (`get_retriever:50` 하이브리드 검색, `retrieve_docs:80`)
 - `src/guards.py` — 가드레일 (`input_guard:75`, `mask_pii:104`, 미들웨어 `:126`·`:163`·`:190`)
