@@ -18,6 +18,7 @@ DATA_DIR = ROOT / "data"
 ETF_LIST_CSV = DATA_DIR / "etf_list_20261104.csv"
 SNAPSHOT_DIR = DATA_DIR / "snapshot"
 DOCS_DIR = DATA_DIR / "docs"
+LOG_DIR = ROOT / "logs"
 
 # 기준일 모드: 첫 버전은 평가 모드 고정 (평소 모드는 TASKS 8-1)
 MODE = "eval"

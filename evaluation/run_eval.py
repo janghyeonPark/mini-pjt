@@ -19,6 +19,8 @@ from llm_judge import JUDGE_MODEL, judge_case  # noqa: E402
 from tools import ETFS  # noqa: E402
 
 QUERIES_CSV = EVAL_DIR / "test_queries.csv"
+# 입력 가드레일 고정 거절 문구(src/guards.py REFUSAL_MESSAGE)에서 따온 차단 신호. 문구를 바꾸면 같이 바꾼다
+BLOCK_SIGNALS = ["해당 요청은 처리할 수 없습니다"]
 CATEGORIES = ["positive", "negative", "edge", "guardrail"]
 JUDGE_PENDING = "judge 대기"
 
@@ -124,6 +126,7 @@ def evaluate(case: dict) -> dict:
     return {
         "id": case["id"], "category": case["category"], "input": case["input"],
         "passed": not missing and not violated,
+        "blocked": any(sig in fa.answer for sig in BLOCK_SIGNALS),
         "tools_called": rec.tools, "tools_expected": expected, "tools_missing": missing,
         "forbidden": forbidden, "forbidden_violated": violated,
         "expected_traits": traits,
@@ -150,7 +153,7 @@ def summarize(results: list[dict]) -> None:
             reasons.append(f"금지 항목 위반 {r['forbidden_violated']}")
         j = r.get("judge")
         jtext = f" / judge {j['score']}점{'' if j['is_met'] else ' 미충족 ' + str(j['missing'])}" if j else ""
-        print(f"  [{'PASS' if r['passed'] else 'FAIL'}] #{r['id']} ({r['category']}) 호출 {r['tools_called']}"
+        print(f"  [{'PASS' if r['passed'] else 'FAIL'}] #{r['id']} ({r['category']}){' [차단]' if r.get('blocked') else ''} 호출 {r['tools_called']}"
               f"{' - ' + ', '.join(reasons) if reasons else ''}{jtext}")
 
 

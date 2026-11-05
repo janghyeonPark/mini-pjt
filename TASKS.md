@@ -99,7 +99,7 @@
 
 ## 묶음 4 · 가드레일
 
-- [ ] **4-1. 입력 가드레일 (미들웨어)**
+- [x] **4-1. 입력 가드레일 (미들웨어)**
   `src/guards.py`: 정규식 1차 → Haiku 2차 인젝션 판별, 고정 거절 문구 (`ref/guards_input.py`, `ref/guards_refusal.py` 구조). `InputGuardrailMiddleware` 로 감싸 `create_agent(middleware=[...])` 에 붙인다 — 차단 시 모델 호출 없이 거절 (`ref/day5_practice/guards.py` 구조). 거절 문구를 `run_eval.py` 차단 신호에도 반영.
   - 확인: 문항 15 → 고정 거절 문구, 에이전트 도구 호출 0회. 문항 1 → 정상 통과 (오탐 없음)
 

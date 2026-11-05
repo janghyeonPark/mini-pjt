@@ -8,3 +8,5 @@ ref/
 evaluation/results/round0/
 # 벡터 DB (data/docs 로 다시 생성)
 data/chroma_db/
+# 가드레일·트레이스 로그
+logs/

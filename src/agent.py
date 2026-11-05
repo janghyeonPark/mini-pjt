@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel, Field
 
 from config import AGENT_MODEL, AUX_MODEL, BASE_DATE, REGION
+from guards import REFUSAL_MESSAGE, InputGuardrailMiddleware
 from metrics import RETURN_DEFINITION, VOLATILITY_DEFINITION
 from tools import DISCLAIMER, TOOLS
 
@@ -91,7 +92,12 @@ def make_llm(model: str) -> ChatBedrockConverse:
     return ChatBedrockConverse(model=model, region_name=REGION, temperature=0, config=BEDROCK_RETRY)
 
 
-agent = create_agent(make_llm(AGENT_MODEL), TOOLS, system_prompt=SYSTEM_PROMPT, name="etf_agent")
+agent = create_agent(
+    make_llm(AGENT_MODEL), TOOLS, system_prompt=SYSTEM_PROMPT, name="etf_agent",
+    middleware=[
+        InputGuardrailMiddleware(),  # 1순위: 주입이면 모델 호출 없이 고정 문구로 거절
+    ],
+)
 structurer = make_llm(AUX_MODEL).with_structured_output(AnswerDraft)
 
 
@@ -153,6 +159,8 @@ def run(question: str, config: dict | None = None) -> FinalAnswer:
     result = agent.invoke({"messages": [HumanMessage(question)]}, config=config)
     messages = result["messages"]
     draft = get_text(messages[-1])
+    if draft == REFUSAL_MESSAGE:  # 입력 가드레일 차단: 고정 문구를 구조화 단계에서 바꾸지 않고 그대로 낸다
+        return FinalAnswer(answer=REFUSAL_MESSAGE, comparison_table=[], sources=[], base_date=BASE_DATE)
     perf = collect_performance(messages)
 
     structured = structurer.invoke(STRUCTURE_PROMPT.format(question=question, draft=draft, codes=list(perf)))
