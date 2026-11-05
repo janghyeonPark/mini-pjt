@@ -77,6 +77,26 @@ def input_guard(text: str) -> tuple[bool, str]:
     return False, "통과"
 
 
+# ------------------------------------------------------------
+# 개인정보 마스킹 (ref/day5_practice/masking_middleware.py 패턴, 에이전트 호출 전에 적용)
+# ------------------------------------------------------------
+# 순서 중요: 주민번호·전화번호를 계좌번호보다 먼저 본다. 계좌번호 패턴은 끝 묶음이 4자리 이상이라 날짜(2026-11-03)는 걸리지 않는다
+# 경계는 \b 대신 앞뒤 숫자 여부로 본다. 한글도 단어 문자라 "678901이고" 에서 \b 가 성립하지 않기 때문
+PII_PATTERNS = {
+    "rrn": r"(?<!\d)\d{6}-?[1-4]\d{6}(?!\d)",                              # 주민등록번호
+    "phone": r"(?<!\d)01[0-9][-\s]?\d{3,4}[-\s]?\d{4}(?!\d)",              # 휴대전화
+    "account": r"(?<!\d)(?:\d{2,6}-\d{2,6}-\d{4,7}|\d{10,14})(?!\d)",      # 계좌번호 (하이픈 있음/없음)
+    "email": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
+}
+
+
+def mask_pii(text: str) -> str:
+    """개인정보를 [MASKED_종류] 로 바꾼다."""
+    for kind, pattern in PII_PATTERNS.items():
+        text = re.sub(pattern, f"[MASKED_{kind.upper()}]", text)
+    return text
+
+
 def log_block(kind: str, reason: str) -> None:
     """내부 기록: 사유는 여기에만 남긴다 (사용자에게는 노출하지 않는다)."""
     LOG_DIR.mkdir(parents=True, exist_ok=True)

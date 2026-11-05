@@ -10,12 +10,13 @@ from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel, Field
 
 from config import AGENT_MODEL, AUX_MODEL, BASE_DATE, REGION
-from guards import REFUSAL_MESSAGE, InputGuardrailMiddleware
+from guards import REFUSAL_MESSAGE, InputGuardrailMiddleware, mask_pii
 from metrics import RETURN_DEFINITION, VOLATILITY_DEFINITION
 from tools import DISCLAIMER, TOOLS
 
 # Bedrock 호출은 botocore 적응형 재시도(지수 백오프)로 감싼다
 BEDROCK_RETRY = Config(retries={"max_attempts": 6, "mode": "adaptive"})
+PII_NOTICE = "※ 입력하신 개인정보(계좌번호·연락처 등)는 마스킹했으며 저장하거나 사용하지 않습니다."
 DATA_SOURCES = [
     "KRX 정보데이터시스템 ETF 전종목 기본정보 (2026-11-04 다운로드)",
     "pykrx 일별 종가",
@@ -33,6 +34,7 @@ SYSTEM_PROMPT = f"""너는 연금저축 계좌로 ETF에 투자하는 사람을 
 - 수익률·변동성·보수·시가총액 숫자는 답변 문장에 쓰지 않는다. 비교표는 도구 결과로 자동 생성되므로 "비교표 참고"로 가리키고, 문장에는 차이의 성격(환헤지 여부, 보수 높낮이, 상장 기간 등)만 설명한다.
 - 특정 종목을 사라고 권하지 않는다("선택하시기 바랍니다" 같은 권유 표현 포함). 비교와 근거만 제공한다.
 - 미래 수익률을 예측하지 않는다.
+- 질문에 [MASKED_...] 가 있으면 개인정보가 마스킹된 것이다. 개인정보는 저장·사용하지 않는다고 안내하고, 계좌번호 등을 되묻지 않는다.
 - 답변은 한국어로 간결하게 쓴다."""
 
 STRUCTURE_PROMPT = """아래는 사용자 질문과 ETF 비교 도우미의 답변이다. 이를 최종 응답 형식으로 정리하라.
@@ -156,6 +158,8 @@ def build_table(codes: list[str], perf: dict[str, dict]) -> list[TableRow]:
 
 def run(question: str, config: dict | None = None) -> FinalAnswer:
     """질문 하나를 에이전트로 처리해 구조화된 최종 답변을 반환한다."""
+    # 개인정보는 미들웨어가 아니라 여기서 먼저 마스킹한다. 그래프 상태·trace 콜백에 원문이 들어가지 않게 하기 위함
+    question = mask_pii(question)
     result = agent.invoke({"messages": [HumanMessage(question)]}, config=config)
     messages = result["messages"]
     draft = get_text(messages[-1])
@@ -168,6 +172,8 @@ def run(question: str, config: dict | None = None) -> FinalAnswer:
     table = build_table(codes, perf)
 
     answer = structured.answer
+    if "[MASKED_" in question:  # 개인정보 안내는 구조화 단계에서 빠지지 않도록 코드가 붙인다
+        answer = PII_NOTICE + "\n\n" + answer
     rule = selection_rule(messages)
     if rule:  # 대표 ETF 선정 기준은 구조화 단계에서 빠지지 않도록 코드가 붙인다
         answer += f"\n\n[대표 ETF 선정 기준] {rule}"

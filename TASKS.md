@@ -103,7 +103,7 @@
   `src/guards.py`: 정규식 1차 → Haiku 2차 인젝션 판별, 고정 거절 문구 (`ref/guards_input.py`, `ref/guards_refusal.py` 구조). `InputGuardrailMiddleware` 로 감싸 `create_agent(middleware=[...])` 에 붙인다 — 차단 시 모델 호출 없이 거절 (`ref/day5_practice/guards.py` 구조). 거절 문구를 `run_eval.py` 차단 신호에도 반영.
   - 확인: 문항 15 → 고정 거절 문구, 에이전트 도구 호출 0회. 문항 1 → 정상 통과 (오탐 없음)
 
-- [ ] **4-2. 개인정보 마스킹 (호출 전)**
+- [x] **4-2. 개인정보 마스킹 (호출 전)**
   `src/guards.py` 에 계좌번호·주민등록번호·전화번호 마스킹 함수. 미들웨어가 아니라 `run()` 에서 에이전트 호출 **전에** 적용해 답변·trace·로그에 마스킹된 값만 흐르게 한다.
   - 확인: 문항 14 실행 후 답변과 저장 파일 어디에도 `123-45-678901` 이 없음
 

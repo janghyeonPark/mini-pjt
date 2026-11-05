@@ -15,6 +15,7 @@ sys.path.insert(0, str(EVAL_DIR.parent / "src"))
 
 from agent import FinalAnswer, run  # noqa: E402
 from config import BANNED_PHRASES, BASE_DATE  # noqa: E402
+from guards import mask_pii  # noqa: E402
 from llm_judge import JUDGE_MODEL, judge_case  # noqa: E402
 from tools import ETFS  # noqa: E402
 
@@ -116,7 +117,7 @@ def evaluate(case: dict) -> dict:
     # 코드로 못 본 forbidden 과 expected_traits 는 judge 가 판정한다 (코드 판정 위에 덧붙임)
     pending = [f["item"] for f in forbidden if f["violated"] is None]
     table = [r.model_dump() for r in fa.comparison_table]
-    jr = judge_case(case["input"], fa.answer, table, traits, pending)
+    jr = judge_case(mask_pii(case["input"]), fa.answer, table, traits, pending)  # judge 근거에도 원문이 남지 않게
     for f in forbidden:
         if f["violated"] is None:
             f["violated"] = f["item"] in jr.forbidden_violated
@@ -124,7 +125,7 @@ def evaluate(case: dict) -> dict:
     violated = [f["item"] for f in forbidden if f["violated"]]
 
     return {
-        "id": case["id"], "category": case["category"], "input": case["input"],
+        "id": case["id"], "category": case["category"], "input": mask_pii(case["input"]),  # 결과 파일에도 원문을 남기지 않는다
         "passed": not missing and not violated,
         "blocked": any(sig in fa.answer for sig in BLOCK_SIGNALS),
         "tools_called": rec.tools, "tools_expected": expected, "tools_missing": missing,
@@ -179,7 +180,7 @@ def main():
             print(f"#{case['id']} 이미 채점됨 → 건너뜀")
             results.append(json.loads(path.read_text(encoding="utf-8")))
             continue
-        print(f"#{case['id']} 실행 중: {case['input'][:40]}")
+        print(f"#{case['id']} 실행 중: {mask_pii(case['input'])[:40]}")
         try:
             r = evaluate(case)
         except Exception as e:  # 한 문항 실패가 전체를 멈추지 않게 한다. 저장하지 않으므로 재실행 시 다시 시도
