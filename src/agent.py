@@ -10,7 +10,12 @@ from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel, Field
 
 from config import AGENT_MODEL, AUX_MODEL, BASE_DATE, REGION
-from guards import REFUSAL_MESSAGE, InputGuardrailMiddleware, mask_pii
+from langchain.agents.middleware import ToolCallLimitMiddleware
+
+from guards import (
+    BLOCKED_OUTPUT_MESSAGE, REFUSAL_MESSAGE, InputGuardrailMiddleware, LoggingMiddleware,
+    OutputGuardrailMiddleware, find_banned, log_block, mask_pii,
+)
 from metrics import RETURN_DEFINITION, VOLATILITY_DEFINITION
 from tools import DISCLAIMER, TOOLS
 
@@ -96,8 +101,11 @@ def make_llm(model: str) -> ChatBedrockConverse:
 
 agent = create_agent(
     make_llm(AGENT_MODEL), TOOLS, system_prompt=SYSTEM_PROMPT, name="etf_agent",
-    middleware=[
-        InputGuardrailMiddleware(),  # 1순위: 주입이면 모델 호출 없이 고정 문구로 거절
+    middleware=[  # 순서는 ref/day5_practice/day5_final.py 를 따른다
+        InputGuardrailMiddleware(),               # 1순위: 주입이면 모델 호출 없이 고정 문구로 거절
+        ToolCallLimitMiddleware(run_limit=10),    # 도구 무한 호출 방지
+        OutputGuardrailMiddleware(),              # 최종 응답 금지 표현 → 1회 재생성 → 고정 문구
+        LoggingMiddleware(),                      # 마지막: 정제된 응답과 토큰 사용량만 기록
     ],
 )
 structurer = make_llm(AUX_MODEL).with_structured_output(AnswerDraft)
@@ -163,8 +171,8 @@ def run(question: str, config: dict | None = None) -> FinalAnswer:
     result = agent.invoke({"messages": [HumanMessage(question)]}, config=config)
     messages = result["messages"]
     draft = get_text(messages[-1])
-    if draft == REFUSAL_MESSAGE:  # 입력 가드레일 차단: 고정 문구를 구조화 단계에서 바꾸지 않고 그대로 낸다
-        return FinalAnswer(answer=REFUSAL_MESSAGE, comparison_table=[], sources=[], base_date=BASE_DATE)
+    if draft in (REFUSAL_MESSAGE, BLOCKED_OUTPUT_MESSAGE):  # 가드레일 고정 문구는 구조화 단계에서 바꾸지 않고 그대로 낸다
+        return FinalAnswer(answer=draft, comparison_table=[], sources=[], base_date=BASE_DATE)
     perf = collect_performance(messages)
 
     structured = structurer.invoke(STRUCTURE_PROMPT.format(question=question, draft=draft, codes=list(perf)))
@@ -172,6 +180,11 @@ def run(question: str, config: dict | None = None) -> FinalAnswer:
     table = build_table(codes, perf)
 
     answer = structured.answer
+    # 구조화 단계(Haiku)가 문장을 다시 쓰므로 내보내기 직전에 금지 표현을 한 번 더 코드로 검사한다
+    hits = find_banned(answer)
+    if hits:
+        log_block("output_banned", f"구조화 답변 {hits} → 고정 문구")
+        answer = BLOCKED_OUTPUT_MESSAGE
     if "[MASKED_" in question:  # 개인정보 안내는 구조화 단계에서 빠지지 않도록 코드가 붙인다
         answer = PII_NOTICE + "\n\n" + answer
     rule = selection_rule(messages)

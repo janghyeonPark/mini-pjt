@@ -107,7 +107,7 @@
   `src/guards.py` 에 계좌번호·주민등록번호·전화번호 마스킹 함수. 미들웨어가 아니라 `run()` 에서 에이전트 호출 **전에** 적용해 답변·trace·로그에 마스킹된 값만 흐르게 한다.
   - 확인: 문항 14 실행 후 답변과 저장 파일 어디에도 `123-45-678901` 이 없음
 
-- [ ] **4-3. 출력 가드레일 (미들웨어)**
+- [x] **4-3. 출력 가드레일 (미들웨어)**
   `OutputGuardrailMiddleware`: `after_model` 에서 최종 응답(도구 호출 없는 것)만 금지 표현(`config.BANNED_PHRASES`) 코드 검사 → 걸리면 1회 재생성 → 그래도 걸리면 고정 문구 (`ref/day5_practice/guards_output.py` 구조). `ToolCallLimitMiddleware`·`LoggingMiddleware`(토큰 사용량 기록)도 이때 붙인다.
   - 확인: 금지 표현을 넣은 가짜 답변으로 검사 함수 단위 확인. 문항 12·13 답변에 금지 표현 0개
 
