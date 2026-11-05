@@ -37,6 +37,15 @@ pip install -r requirements.txt
 python src/agent.py "미국 S&P500 추종 ETF 중에 연금저축으로 살 수 있는 거 비교해줘"
 python evaluation/run_eval.py --ids 1,4          # 일부 문항 채점 (개발용 round0)
 python evaluation/run_eval.py --round 1          # 라운드 전체 채점
+
+# API 서버 (POST /query → {answer, contexts, trace})
+uvicorn api:app --app-dir src --port 8000
+```
+
+```powershell
+# 호출 예 (PowerShell). 한글이 깨지지 않게 본문을 UTF-8 바이트로 보낸다
+$body = [Text.Encoding]::UTF8.GetBytes('{"question": "KODEX 레버리지 연금저축에서 살 수 있어?"}')
+Invoke-RestMethod -Uri http://localhost:8000/query -Method Post -ContentType "application/json; charset=utf-8" -Body $body
 ```
 
 ## RAGAS 평가 결과
