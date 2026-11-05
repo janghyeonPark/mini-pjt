@@ -135,7 +135,7 @@
   `run_eval.py` 에 비교표·답변 숫자 ↔ trace 도구 결과 대조, 금지 표현 코드 검사 + judge 정책 심사 추가.
   - 확인: 일부러 틀린 숫자를 넣은 결과로 검사가 실패를 잡아냄
 
-- [ ] **6-2. RAGAS 지표**
+- [x] **6-2. RAGAS 지표**
   `evaluation/ragas_references.csv` 작성(문서 근거 문항만), ragas import 호환 shim, Haiku·Titan 래핑으로 4지표 계산.
   - 확인: `--ids 3,5` 로 4지표 숫자가 출력됨
 
