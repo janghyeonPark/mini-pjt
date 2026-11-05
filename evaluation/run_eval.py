@@ -15,6 +15,7 @@ sys.path.insert(0, str(EVAL_DIR.parent / "src"))
 
 from agent import FinalAnswer, run  # noqa: E402
 from config import BANNED_PHRASES, BASE_DATE  # noqa: E402
+from llm_judge import JUDGE_MODEL, judge_case  # noqa: E402
 from tools import ETFS  # noqa: E402
 
 QUERIES_CSV = EVAL_DIR / "test_queries.csv"
@@ -108,6 +109,16 @@ def evaluate(case: dict) -> dict:
     expected = split(case["expected_tools"])
     missing = [t for t in expected if t not in rec.tools]
     forbidden = [check_forbidden(item, fa, case) for item in split(case["forbidden"])]
+    traits = split(case["expected_traits"])
+
+    # 코드로 못 본 forbidden 과 expected_traits 는 judge 가 판정한다 (코드 판정 위에 덧붙임)
+    pending = [f["item"] for f in forbidden if f["violated"] is None]
+    table = [r.model_dump() for r in fa.comparison_table]
+    jr = judge_case(case["input"], fa.answer, table, traits, pending)
+    for f in forbidden:
+        if f["violated"] is None:
+            f["violated"] = f["item"] in jr.forbidden_violated
+            f["detail"] = f"judge: {'위반' if f['violated'] else '위반 없음'}"
     violated = [f["item"] for f in forbidden if f["violated"]]
 
     return {
@@ -115,7 +126,8 @@ def evaluate(case: dict) -> dict:
         "passed": not missing and not violated,
         "tools_called": rec.tools, "tools_expected": expected, "tools_missing": missing,
         "forbidden": forbidden, "forbidden_violated": violated,
-        "expected_traits": split(case["expected_traits"]),
+        "expected_traits": traits,
+        "judge": {"model": JUDGE_MODEL, **jr.model_dump(exclude={"forbidden_violated"})},
         "result": fa.model_dump(),
     }
 
@@ -127,15 +139,19 @@ def summarize(results: list[dict]) -> None:
         rs = [r for r in results if r["category"] == cat]
         if rs:
             print(f"  {cat}: {sum(r['passed'] for r in rs)}/{len(rs)}")
+    judged = [r["judge"]["score"] for r in results if "judge" in r]
+    if judged:
+        print(f"  judge 평균 점수: {sum(judged) / len(judged):.2f} ({len(judged)}문항)")
     for r in results:
-        pending = sum(f["violated"] is None for f in r["forbidden"])
         reasons = []
         if r["tools_missing"]:
             reasons.append(f"미호출 도구 {r['tools_missing']}")
         if r["forbidden_violated"]:
             reasons.append(f"금지 항목 위반 {r['forbidden_violated']}")
+        j = r.get("judge")
+        jtext = f" / judge {j['score']}점{'' if j['is_met'] else ' 미충족 ' + str(j['missing'])}" if j else ""
         print(f"  [{'PASS' if r['passed'] else 'FAIL'}] #{r['id']} ({r['category']}) 호출 {r['tools_called']}"
-              f"{' - ' + ', '.join(reasons) if reasons else ''}{f' / {JUDGE_PENDING} {pending}건' if pending else ''}")
+              f"{' - ' + ', '.join(reasons) if reasons else ''}{jtext}")
 
 
 def main():
