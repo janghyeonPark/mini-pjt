@@ -87,7 +87,7 @@
   `src/retriever.py`: `MarkdownHeaderTextSplitter` 로 헤더 단위 분할 → Chroma(Titan 임베딩) + `BM25Retriever`(kiwi 토크나이저) → `EnsembleRetriever` 결합 (`ref/day2_practice/hybrid.py` 구조, 가중치 0.3/0.7에서 시작), `[출처: 파일명]` 포함 반환. 도구 등록.
   - 확인: "KOFR" 검색 1위가 `index_guide.md` 의 KOFR 단락, "레버리지 연금저축" 검색 1위가 `pension_rules.md`
 
-- [ ] **3-4. 매수 가능 판정 사유에 문서 출처 연결**
+- [x] **3-4. 매수 가능 판정 사유에 문서 출처 연결**
   위험 확인 결과 연금저축은 레버리지·인버스 외 추가 제한이 없다. `src/rules.py` 사유 문구에 근거 출처(`pension_rules.md`, 금융위원회 업무지침)를 붙이는 것으로 줄인다.
   - 확인: `122630` 판정 사유에 출처가 나오고, 불가 종목 수는 그대로 102개
 

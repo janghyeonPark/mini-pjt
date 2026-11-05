@@ -5,16 +5,18 @@ from etf_data import load_etf_list
 
 # 추적배수가 이 값이 아니면 레버리지·인버스 → 연금계좌 매수 불가
 NORMAL_MULTIPLE = "일반"
+# 판정 근거 (data/docs/pension_rules.md). 연금저축은 레버리지·인버스 외 종목 제한이 없다
+RULE_SOURCE = "pension_rules.md, 금융위원회 연금저축계좌 ETF 투자 업무지침(2017-11-21)"
 
 
 def check_eligibility(row: pd.Series) -> tuple[bool, str]:
-    """ETF 한 종목의 연금저축 매수 가능 여부와 사유를 반환한다.
+    """ETF 한 종목의 연금저축 매수 가능 여부와 출처가 붙은 사유를 반환한다.
 
-    현재 규칙: 추적배수가 레버리지·인버스면 불가. (문서 기반 추가 규칙은 TASKS 3-4)
+    규칙: 추적배수가 레버리지·인버스면 불가. 선물·합성 ETF와 위험자산 한도는 제한 없음 (pension_rules.md)
     """
     if row["multiple"] != NORMAL_MULTIPLE:
-        return False, f"{row['multiple']} 상품은 연금저축 계좌에서 매수할 수 없음"
-    return True, "매수 가능 (레버리지·인버스 아님)"
+        return False, f"{row['multiple']} 상품은 연금저축 계좌에서 매수할 수 없음 [출처: {RULE_SOURCE}]"
+    return True, f"매수 가능 (레버리지·인버스 아님. 선물·합성 ETF도 가능) [출처: {RULE_SOURCE}]"
 
 
 def add_eligibility(etfs: pd.DataFrame) -> pd.DataFrame:
