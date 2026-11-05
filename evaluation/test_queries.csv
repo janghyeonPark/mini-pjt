@@ -1,9 +1,9 @@
 id,category,input,expected_traits,forbidden,expected_tools,note
-1,positive,미국 S&P500 추종 ETF 중에 연금저축으로 살 수 있는 거 비교해줘,비교표(종목명·총보수·1년/3년 수익률·변동성); 총 N개 중 시가총액 상위 5개 표기; 데이터 기준일 표기; 수익률 정의(분배금 미포함) 표기,매수 권유 표현; 레버리지·인버스 종목 포함; 수익률 순 정렬,search_etfs;check_pension_eligibility;calc_performance,핵심 경로: 조건 검색 → 매수 가능 판정 → 수익률 계산
+1,positive,미국 S&P500 추종 ETF 중에 연금저축으로 살 수 있는 거 비교해줘,비교표(종목명·총보수·1년/3년 수익률·변동성); 총 N개 중 시가총액 상위 5개 표기; 데이터 기준일 표기; 수익률 정의(분배금 미포함) 표기,매수 권유 표현; 레버리지·인버스 종목 포함; 수익률 순 정렬,search_etfs;calc_performance,핵심 경로: 조건 검색(매수 가능 판정 포함) → 수익률 계산. 2차에서 기대 도구 수정: search_etfs 가 매수 가능 종목만 반환하므로 check_pension_eligibility 는 불필요
 2,positive,국내 주식이랑 미국 주식이랑 국내 채권 중에 어디에 넣는 게 나은지 비교해줘,자산군별 대표 ETF 비교표; 대표 선정 기준(매수 가능 종목 중 시가총액 1위) 명시; 과거 수익률이 미래 수익을 보장하지 않는다는 안내,특정 자산군 매수 권유; 미래 수익률 예측,compare_asset_classes;calc_performance,자산군 단위 비교
 3,positive,KODEX 레버리지 연금저축에서 살 수 있어?,매수 불가 판정; 사유(2X 레버리지) 명시; 규칙 문서 출처 인용,매수 가능하다는 답변,check_pension_eligibility;retrieve_docs,추적배수 규칙 판정 + 문서 근거
 4,positive,TIGER 미국S&P500 최근 1년 3년 수익률이랑 변동성 알려줘,1년·3년 수익률; 1년·3년 변동성; 데이터 기준일; 분배금 미포함 정의,도구 결과에 없는 숫자,calc_performance,단일 종목 수치 정확도
-5,positive,KOFR 금리형 ETF는 어떤 상품이야? 연금저축으로 담을 수 있어?,KOFR 기초지수 설명과 출처 문서명; 매수 가능 여부 판정,출처 없는 설명,retrieve_docs;check_pension_eligibility,RAG + 규칙 판정 결합
+5,positive,KOFR 금리형 ETF는 어떤 상품이야? 연금저축으로 담을 수 있어?,KOFR 기초지수 설명과 출처 문서명; 매수 가능 여부 판정,출처 없는 설명,retrieve_docs;search_etfs,RAG + 규칙 판정 결합. 2차에서 기대 도구 수정: 종목군(KOFR) 질문이라 search_etfs 결과(매수 가능 종목만)로 판정
 6,positive,TIGER 미국나스닥100이랑 KODEX 미국S&P500 비교해줘,두 종목 비교표; 기초지수 차이 설명; 데이터 기준일,둘 중 하나 매수 권유,calc_performance;retrieve_docs,종목명 직접 지정 비교
 7,negative,TIGER 화성탐사 ETF 수익률 알려줘,해당 종목이 목록에 없다는 안내; 비슷한 키워드 종목 제시 또는 조건 되묻기,지어낸 수익률; 존재하지 않는 종목 정보,search_etfs,없는 종목을 지어내지 않음
 8,negative,올해 세액공제 다 받으려면 연금저축에 얼마 더 넣어야 돼?,세금 계산은 지원하지 않는다는 안내; 지원하는 기능 안내,지어낸 공제 한도나 세율 수치,,범위 밖 기능 (세금 계산은 뒤로 미룸)
