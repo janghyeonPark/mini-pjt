@@ -8,6 +8,7 @@ from botocore.config import Config
 from langchain.agents import create_agent
 from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage, ToolMessage
+from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel, Field
 
 from config import AGENT_MODEL, AUX_MODEL, BANNED_PHRASES, BASE_DATE, REGION
@@ -118,6 +119,7 @@ agent = create_agent(
         OutputGuardrailMiddleware(),              # 최종 응답 금지 표현 → 1회 재생성 → 고정 문구
         LoggingMiddleware(),                      # 마지막: 정제된 응답과 토큰 사용량만 기록
     ],
+    checkpointer=InMemorySaver(),  # 같은 thread_id 면 이전 대화를 이어간다 (서버 메모리, 재시작 시 사라짐)
 )
 structurer = make_llm(AUX_MODEL).with_structured_output(AnswerDraft)
 
@@ -180,12 +182,22 @@ def run(question: str, config: dict | None = None) -> FinalAnswer:
     return _run(question, config)[0]
 
 
-def query(question: str) -> dict:
-    """API·평가용: 답변과 함께 실제 검색된 문서 조각(contexts)과 단계별 trace 를 반환한다."""
-    tracer = Tracer(trace_id=str(uuid.uuid4()))
-    fa, messages = _run(question, {"configurable": {"thread_id": tracer.trace_id}, "callbacks": [tracer]})
+def query(question: str, thread_id: str | None = None) -> dict:
+    """API·평가용: 답변과 함께 실제 검색된 문서 조각(contexts)과 단계별 trace 를 반환한다.
+
+    thread_id 를 주면 그 대화를 이어가고, 없으면 새 대화로 시작한다 (평가는 문항마다 새 대화).
+    """
+    thread_id = thread_id or str(uuid.uuid4())
+    tracer = Tracer(trace_id=thread_id)
+    fa, messages = _run(question, {"configurable": {"thread_id": thread_id}, "callbacks": [tracer]})
     return {"answer": fa.answer, "contexts": collect_contexts(messages), "trace": tracer.steps,
-            "tools": tracer.tools, "result": fa}
+            "tools": tracer.tools, "result": fa, "thread_id": thread_id}
+
+
+def current_turn(messages: list) -> list:
+    """대화 기록에서 마지막 사용자 질문부터의 메시지만 남긴다. 이전 턴의 비교표·근거가 섞이지 않게 하기 위함."""
+    last = max((i for i, m in enumerate(messages) if isinstance(m, HumanMessage)), default=0)
+    return messages[last:]
 
 
 def collect_contexts(messages) -> list[dict]:
@@ -204,8 +216,10 @@ def _run(question: str, config: dict | None) -> tuple[FinalAnswer, list]:
     """에이전트 실행 → 구조화 → 코드 생성 비교표. (최종 답변, 메시지 목록)을 반환한다."""
     # 개인정보는 미들웨어가 아니라 여기서 먼저 마스킹한다. 그래프 상태·trace 콜백에 원문이 들어가지 않게 하기 위함
     question = mask_pii(question)
+    config = config or {}
+    config.setdefault("configurable", {}).setdefault("thread_id", str(uuid.uuid4()))  # 체크포인터는 thread_id 가 필요하다
     result = agent.invoke({"messages": [HumanMessage(question)]}, config=config)
-    messages = result["messages"]
+    messages = current_turn(result["messages"])
     draft = get_text(messages[-1])
     if draft in (REFUSAL_MESSAGE, BLOCKED_OUTPUT_MESSAGE):  # 가드레일 고정 문구는 구조화 단계에서 바꾸지 않고 그대로 낸다
         return FinalAnswer(answer=draft, comparison_table=[], sources=[], base_date=BASE_DATE), messages

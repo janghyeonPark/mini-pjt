@@ -1,0 +1,213 @@
+<!doctype html>
+<!-- index.html - 연금저축 ETF 비교 분석 Agent 대화형 화면 (외부 라이브러리 없음, POST /query 호출) -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>연금저축 ETF 비교</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6b7280; --line: #e3e6eb;
+    --accent: #2457d6; --accent-text: #ffffff; --user: #2457d6; --bot: #ffffff;
+    --neg: #c2332b; --pos: #1f7a4d; --code-bg: #f1f3f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1b1f27; --text: #e6e8ec; --muted: #9aa3b2; --line: #2c323d;
+      --accent: #5b8cff; --accent-text: #0d1117; --user: #3a6df0; --bot: #1b1f27;
+      --neg: #ff7b72; --pos: #56d38a; --code-bg: #232833;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.6 -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  .app { max-width: 920px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; padding: 0 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0 12px;
+           border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--panel); color: var(--text); padding: 6px 12px; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  #log { flex: 1; overflow-y: auto; padding: 16px 0; display: flex; flex-direction: column; gap: 14px; }
+  .msg { max-width: 100%; }
+  .user { align-self: flex-end; background: var(--user); color: #fff; padding: 8px 14px; border-radius: 14px 14px 2px 14px;
+          max-width: 80%; white-space: pre-wrap; }
+  .bot { align-self: stretch; background: var(--bot); border: 1px solid var(--line); border-radius: 14px 14px 14px 2px;
+         padding: 12px 16px; }
+  .bot .text { white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+  .bot.error .text { color: var(--neg); }
+  .table-wrap { overflow-x: auto; margin-top: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: right; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; }
+  td.neg { color: var(--neg); } td.pos { color: var(--pos); } td.na { color: var(--muted); }
+  details { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .ctx, .step { background: var(--code-bg); border-radius: 8px; padding: 8px 10px; margin-top: 8px; font-size: 12.5px;
+                white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow-y: auto; }
+  .ctx b, .step b { display: block; margin-bottom: 4px; color: var(--accent); }
+  .step .meta { color: var(--muted); font-weight: normal; }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 10px; }
+  .examples button { font-size: 13px; border-radius: 999px; }
+  form { display: flex; gap: 8px; padding: 12px 0 16px; border-top: 1px solid var(--line); }
+  textarea { flex: 1; resize: none; font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+             background: var(--panel); color: var(--text); min-height: 46px; max-height: 140px; }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  form button { background: var(--accent); color: var(--accent-text); border: none; padding: 0 18px; font-weight: 600; }
+  .loading { color: var(--muted); font-style: italic; }
+  .empty { margin: auto; text-align: center; color: var(--muted); max-width: 520px; }
+  .empty h2 { color: var(--text); font-size: 17px; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>연금저축 ETF 비교 분석 Agent</h1>
+      <p>매수 가능 종목만 · 실제 시세로 계산한 비교표 · 문서 근거 · 추천·예측은 하지 않습니다</p>
+    </div>
+    <button id="reset" type="button" title="대화 기록을 비우고 새 대화를 시작합니다">새 대화</button>
+  </header>
+
+  <div id="log">
+    <div class="empty" id="empty">
+      <h2>무엇을 비교해 볼까요?</h2>
+      <p>추종지수·자산군을 알려주시면 연금저축 계좌에서 살 수 있는 ETF의 1년·3년 수익률, 변동성, 총보수를 같은 기준으로 비교합니다.
+         이어서 "그중 환헤지 상품만 보여줘"처럼 대화를 이어갈 수 있습니다.</p>
+    </div>
+  </div>
+
+  <div class="examples" id="examples">
+    <button type="button">미국 S&P500 추종 ETF 중에 연금저축으로 살 수 있는 거 비교해줘</button>
+    <button type="button">KODEX 레버리지 연금저축에서 살 수 있어?</button>
+    <button type="button">국내 주식이랑 미국 주식이랑 국내 채권 중에 어디에 넣는 게 나은지 비교해줘</button>
+  </div>
+
+  <form id="form">
+    <textarea id="q" rows="1" maxlength="1000" placeholder="질문을 입력하세요 (Enter 전송, Shift+Enter 줄바꿈)"></textarea>
+    <button id="send" type="submit">보내기</button>
+  </form>
+</div>
+
+<script>
+const log = document.getElementById("log");
+const form = document.getElementById("form");
+const q = document.getElementById("q");
+const send = document.getElementById("send");
+let threadId = null;  // 서버가 돌려준 대화 id. 같은 id 로 보내면 이전 대화를 이어간다
+
+// 비교표 칸: [제목, 필드, 형식]
+const COLUMNS = [
+  ["종목명", "name", "text"], ["코드", "code", "text"], ["총보수(연)", "fee_pct", "fee"],
+  ["1년 수익률", "return_1y", "pct"], ["3년 수익률", "return_3y", "pct"],
+  ["1년 변동성", "volatility_1y", "vol"], ["3년 변동성", "volatility_3y", "vol"],
+  ["환헤지", "hedged", "bool"], ["상장일", "listed_date", "text"],
+];
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;  // 답변·문서는 항상 textContent 로 넣는다 (HTML 해석 안 함)
+  return e;
+}
+
+function cell(value, kind) {
+  const td = el("td");
+  if (typeof value === "string" && kind !== "text") { td.textContent = value; td.className = "na"; return td; }  // 산출 불가 등
+  if (kind === "fee") td.textContent = `${value}%`;
+  else if (kind === "pct") { td.textContent = `${value > 0 ? "+" : ""}${value.toFixed(2)}%`; td.className = value < 0 ? "neg" : "pos"; }
+  else if (kind === "vol") td.textContent = `${value.toFixed(2)}%`;
+  else if (kind === "bool") td.textContent = value ? "환헤지(H)" : "환노출";
+  else td.textContent = value;
+  return td;
+}
+
+function renderTable(rows) {
+  const wrap = el("div", "table-wrap");
+  const table = el("table");
+  const head = el("tr");
+  COLUMNS.forEach(([title]) => head.appendChild(el("th", "", title)));
+  table.appendChild(el("thead")).appendChild(head);
+  const body = table.appendChild(el("tbody"));
+  rows.forEach(r => {
+    const tr = el("tr");
+    COLUMNS.forEach(([, key, kind]) => tr.appendChild(cell(r[key], kind)));
+    body.appendChild(tr);
+  });
+  wrap.appendChild(table);
+  return wrap;
+}
+
+function renderDetails(title, items, render) {
+  const d = el("details");
+  d.appendChild(el("summary", "", `${title} (${items.length})`));
+  items.forEach(it => d.appendChild(render(it)));
+  return d;
+}
+
+function addBot(data, isError) {
+  const box = el("div", `msg bot${isError ? " error" : ""}`);
+  box.appendChild(el("div", "text", data.answer));
+  if (data.comparison_table && data.comparison_table.length) box.appendChild(renderTable(data.comparison_table));
+  if (data.contexts && data.contexts.length) {
+    box.appendChild(renderDetails("근거 문서", data.contexts, c => {
+      const div = el("div", "ctx"); div.appendChild(el("b", "", c.doc_id)); div.appendChild(document.createTextNode(c.text)); return div;
+    }));
+  }
+  if (data.trace && data.trace.length) {
+    box.appendChild(renderDetails("실행 단계", data.trace, s => {
+      const div = el("div", "step");
+      const b = el("b", "", s.step);
+      if (s.latency_s !== undefined) b.appendChild(el("span", "meta", `  ${s.latency_s}s${s.tokens ? ` · ${s.tokens} tokens` : ""}`));
+      div.appendChild(b);
+      div.appendChild(document.createTextNode(`입력: ${s.input}\n출력: ${s.output}`));
+      return div;
+    }));
+  }
+  log.appendChild(box);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function ask(question) {
+  question = question.trim();
+  if (!question) return;
+  document.getElementById("empty")?.remove();
+  log.appendChild(el("div", "msg user", question));
+  const wait = el("div", "msg bot loading", "도구를 호출해 조회하는 중입니다… (10~40초)");
+  log.appendChild(wait);
+  log.scrollTop = log.scrollHeight;
+  q.value = ""; send.disabled = true;
+  try {
+    const res = await fetch("/query", {
+      method: "POST", headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ question, thread_id: threadId }),
+    });
+    const data = await res.json();
+    wait.remove();
+    if (data.thread_id) threadId = data.thread_id;
+    addBot(res.ok ? data : { answer: data.answer || `요청 실패 (${res.status})` }, !res.ok);
+  } catch (e) {
+    wait.remove();
+    addBot({ answer: `서버에 연결하지 못했습니다: ${e.message}` }, true);
+  } finally {
+    send.disabled = false; q.focus();
+  }
+}
+
+form.addEventListener("submit", e => { e.preventDefault(); ask(q.value); });
+q.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }
+});
+document.querySelectorAll("#examples button").forEach(b => b.addEventListener("click", () => ask(b.textContent)));
+document.getElementById("reset").addEventListener("click", () => {
+  threadId = null;
+  log.replaceChildren();
+  log.appendChild(el("div", "empty", "새 대화를 시작했습니다. 질문을 입력하세요."));
+  log.firstChild.id = "empty";
+});
+</script>
+</body>
+</html>

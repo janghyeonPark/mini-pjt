@@ -40,6 +40,7 @@ python evaluation/run_eval.py --round 1          # 라운드 전체 채점
 
 # API 서버 (POST /query → {answer, contexts, trace})
 uvicorn api:app --app-dir src --port 8000
+# 대화형 화면: 브라우저에서 http://localhost:8000 (같은 대화 안에서 "그중 환헤지만" 처럼 이어 묻기 가능)
 ```
 
 ```powershell
