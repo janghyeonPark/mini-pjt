@@ -31,7 +31,13 @@
 ## 실행 방법
 레포 루트에서 실행한다. 평가 모드(기준일 2026-11-03)의 ETF 목록·시가총액·시세 스냅샷은 `data/` 에 들어 있어 추가 수집 없이 동작한다. 문서 검색 인덱스(Chroma)는 첫 실행 때 `data/chroma_db/` 에 만들어진다.
 
+```bash
+# 한 번에 실행 (가상환경이 없으면 만들고 패키지 설치 → 서버 시작). Git Bash / Linux / macOS
+bash run.sh                  # 화면 http://localhost:8000, 포트 변경: PORT=8001 bash run.sh
+```
+
 ```powershell
+# 단계별 실행
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
