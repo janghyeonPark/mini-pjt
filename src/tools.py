@@ -49,6 +49,16 @@ def _summary(row) -> dict:
     }
 
 
+def _comparable(df, include_covered_call: bool = False, include_mixed: bool = False):
+    """연금 매수 가능 종목만 남기고, 지수 ETF와 같은 표에서 비교하면 왜곡되는 커버드콜·혼합자산을 기본 제외한다."""
+    df = df[df["eligible"]]
+    if not include_covered_call:
+        df = df[~df["name"].str.contains("커버드콜")]
+    if not include_mixed:
+        df = df[df["asset_class"] != "혼합자산"]
+    return df
+
+
 @tool
 def search_etfs(query: str = "", asset_class: str = "") -> str:
     """연금저축 계좌에서 매수 가능한 ETF를 조건(추종지수·키워드·자산군)으로 검색한다.
@@ -63,11 +73,8 @@ def search_etfs(query: str = "", asset_class: str = "") -> str:
         query: 추종지수나 종목명 키워드 (예: 'S&P500', '나스닥100', 'KOFR', 'S&P500(H)'). 비우면 자산군만으로 검색
         asset_class: 자산군 필터 (예: '미국 주식', '국내 주식', '국내 채권·금리형'). 비우면 전체
     """
-    df = ETFS[ETFS["eligible"]]
-    if "커버드콜" not in query:
-        df = df[~df["name"].str.contains("커버드콜")]
-    if "혼합" not in query and asset_class != "혼합자산":
-        df = df[df["asset_class"] != "혼합자산"]
+    df = _comparable(ETFS, include_covered_call="커버드콜" in query,
+                     include_mixed="혼합" in query or asset_class == "혼합자산")
     if asset_class:
         if asset_class not in set(ETFS["asset_class"]):
             return f"'{asset_class}' 자산군이 없습니다. 가능한 자산군: {sorted(set(ETFS['asset_class']))}"
@@ -141,7 +148,39 @@ def calc_performance(codes: list[str]) -> str:
     })
 
 
-TOOLS = [search_etfs, check_pension_eligibility, calc_performance, retrieve_docs]
+@tool
+def compare_asset_classes(asset_classes: list[str]) -> str:
+    """자산군별 대표 ETF(연금저축 매수 가능 종목 중 시가총액 1위)를 골라 종목코드와 선정 기준을 반환한다.
+
+    "국내 주식이랑 미국 주식이랑 채권 중 어디에 넣을지 비교해줘"처럼 자산군 단위 비교가 필요할 때 사용한다.
+    수익률·변동성은 계산하지 않는다. 결과의 code 목록으로 이어서 calc_performance 를 호출한다.
+    같은 자산군 안의 여러 종목을 비교할 때는 사용하지 않는다 (search_etfs 사용).
+
+    Args:
+        asset_classes: 비교할 자산군 목록 (예: ['국내 주식', '미국 주식', '국내 채권·금리형'])
+    """
+    valid = sorted(set(ETFS["asset_class"]))
+    df = _comparable(ETFS)
+    items, unknown = [], []
+    for ac in asset_classes:
+        pool = df[df["asset_class"] == ac]
+        if pool.empty:
+            unknown.append(ac)
+            continue
+        top = pool.sort_values("market_cap", ascending=False).iloc[0]
+        items.append({**_summary(top), "candidates_in_class": len(pool)})
+    if not items:
+        return f"비교할 자산군을 찾지 못했습니다: {unknown}. 가능한 자산군: {valid}"
+    return _to_json({
+        "selection_rule": "자산군별 연금저축 매수 가능 종목(커버드콜·혼합자산 제외) 중 시가총액 1위를 대표 ETF로 선정",
+        "items": items,
+        "unknown_asset_classes": unknown,
+        "available_asset_classes": valid if unknown else None,
+        "next_step": "items 의 code 로 calc_performance 를 호출해 수익률·변동성을 계산할 것",
+    })
+
+
+TOOLS = [search_etfs, check_pension_eligibility, calc_performance, compare_asset_classes, retrieve_docs]
 
 
 if __name__ == "__main__":

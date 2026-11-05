@@ -110,6 +110,17 @@ def collect_performance(messages) -> dict[str, dict]:
     return rows
 
 
+def selection_rule(messages) -> str | None:
+    """compare_asset_classes 결과에서 대표 ETF 선정 기준 문구를 꺼낸다."""
+    for m in messages:
+        if isinstance(m, ToolMessage) and m.name == "compare_asset_classes":
+            try:
+                return json.loads(m.content).get("selection_rule")
+            except json.JSONDecodeError:
+                return None
+    return None
+
+
 def collect_doc_sources(messages) -> list[str]:
     """retrieve_docs 결과에서 실제로 검색된 문서 조각의 출처를 순서대로 중복 없이 모은다."""
     found = []
@@ -149,6 +160,9 @@ def run(question: str, config: dict | None = None) -> FinalAnswer:
     table = build_table(codes, perf)
 
     answer = structured.answer
+    rule = selection_rule(messages)
+    if rule:  # 대표 ETF 선정 기준은 구조화 단계에서 빠지지 않도록 코드가 붙인다
+        answer += f"\n\n[대표 ETF 선정 기준] {rule}"
     if table:
         answer += (f"\n\n※ 데이터 기준일 {BASE_DATE}. 수익률: {RETURN_DEFINITION}. "
                    f"변동성: {VOLATILITY_DEFINITION}. {DISCLAIMER}")
