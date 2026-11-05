@@ -4,26 +4,28 @@
 연금저축 계좌로 ETF에 투자할 때 "무엇을 살 수 있고, 같은 기준으로 비교하면 어떤지"를 한곳에서 보기 어려워 한 번 판단에 약 2시간이 걸리는 문제를, 매수 가능 종목만 실제 시세로 계산한 비교표와 문서 근거로 수 분 안에 답한다.
 
 ## 활용한 패턴 (Day 1~7)
-<!-- 작성 중: 구현이 끝난 항목부터 채운다 -->
-- Day 1: 구조화 출력 — 최종 답변을 pydantic `FinalAnswer{answer, comparison_table, sources, base_date}` 로 받고, LLM은 설명 문장과 표에 넣을 종목코드만 고른다 (`with_structured_output`)
-- Day 2: RAG — (TASKS 3-3 예정) 매매 규칙·지수 설명 문서 하이브리드 검색 (벡터 + BM25 `kiwipiepy`)
-- Day 3: ReAct 에이전트 — 도구 3개(검색·매수 가능 판정·수익률 계산)를 에이전트가 골라 호출
-- Day 4: 도구 설계 — 독스트링에 "언제 쓰고 언제 쓰지 않는지", 못 찾으면 비슷한 종목·가능한 자산군을 안내
-- Day 4: 도구 에러 처리 — 시세 조회 실패도 예외 대신 "지어내지 말고 조회 실패로 안내" 메시지로 반환
-- Day 5: `create_agent` + 미들웨어 — (TASKS 4 예정) 입력·출력 가드레일, 로깅. 개인정보 마스킹은 trace에 원문이 남지 않도록 호출 전에 적용
-- Day 6: (적용 안 함) Supervisor — 도구 5개라 단일 에이전트로 충분. HITL(Day 5)도 매매 주문을 빼서 승인할 위험 작업이 없음
-- Day 7: LLM-as-Judge·누적 평가셋 — 고정 루브릭 judge(Haiku) + 코드 판정 채점 스크립트
+- Day 1: 구조화 출력 — 최종 답변을 pydantic `FinalAnswer{answer, comparison_table, sources, base_date}` 로 받는다. LLM(Haiku)은 설명 문장과 표에 넣을 종목코드만 고르고(`with_structured_output`), 숫자는 코드가 도구 결과에서 옮긴다
+- Day 2: RAG — 매매 규칙·기초지수 문서를 `MarkdownHeaderTextSplitter` 로 헤더 단위 분할하고, Chroma(Titan 임베딩) + BM25(`kiwipiepy` 형태소) 를 `EnsembleRetriever`(0.3/0.7) 로 결합한다. 검색 결과에 `[출처: 파일 > 섹션]` 을 붙여 반환한다
+- Day 3: ReAct 에이전트 — 도구 5개(검색·매수 가능 판정·수익률 계산·자산군 대표 비교·문서 검색)를 에이전트가 질문에 맞게 골라 호출한다
+- Day 4: 도구 설계·에러 처리·trace — 독스트링에 "언제 쓰고 언제 쓰지 않는지"를 적고, 시세·문서 조회 실패는 예외 대신 "지어내지 말고 실패로 안내" 메시지로 반환한다. LLM·도구 호출은 콜백 트레이서로 단계별 기록한다
+- Day 5: `create_agent` + 미들웨어 — 입력 가드레일(정규식 → Haiku 인젝션 판별), 도구 호출 제한, 출력 가드레일(금지 표현 → 1회 재생성 → 고정 문구), 로깅. 개인정보 마스킹은 trace 에 원문이 남지 않도록 에이전트 호출 전에 적용하고, 체크포인터로 화면 대화를 이어간다
+- Day 6: (적용 안 함) Supervisor — 도구 5개라 단일 에이전트로 충분하다. HITL(Day 5)도 매매 주문을 빼서 승인할 위험 작업이 없다
+- Day 7: LLM 심사·누적 평가셋 — 고정 루브릭 judge(Haiku) 위에 코드 판정(도구 호출·금지 항목·수치 정확도·정책 위반)을 둔 채점 스크립트와 RAGAS 4지표
 
 ## 아키텍처
-<!-- 작성 중 -->
 ```
-질문 → ReAct 에이전트 (Sonnet 4.5)
-         ├─ search_etfs               KRX ETF 목록 CSV + 자산군 매핑 + 매수 가능 판정 + 시가총액 정렬
-         ├─ check_pension_eligibility 추적배수 규칙 (레버리지·인버스 불가)
-         └─ calc_performance          pykrx 시세 스냅샷 → 1년·3년 가격수익률·연환산 변동성
-      → 구조화 단계 (Haiku): 설명 문장 + 표에 넣을 종목코드
-      → 비교표는 calc_performance 결과로 코드가 생성
-      → {answer, comparison_table, sources, base_date}
+화면(index.html) / POST /query  ──  FastAPI (src/api.py)
+  → 개인정보 마스킹 (계좌번호·주민번호·전화·이메일)
+  → create_agent (Sonnet 4.5) + 미들웨어 [입력 가드레일 → 도구 호출 제한 → 출력 가드레일 → 로깅] + 체크포인터
+       ├─ search_etfs               KRX ETF 목록 CSV + 자산군 매핑 + 매수 가능 판정 + 시가총액 정렬
+       ├─ check_pension_eligibility 추적배수 규칙 (레버리지·인버스 불가) + 근거 출처
+       ├─ calc_performance          pykrx 시세 스냅샷 → 1년·3년 가격수익률·연환산 변동성
+       ├─ compare_asset_classes     자산군별 대표 ETF (매수 가능 종목 중 시가총액 1위)
+       └─ retrieve_docs             하이브리드 검색 (Chroma + BM25) → [출처] 붙은 문서 조각
+  → 구조화 단계 (Haiku): 설명 문장 + 표에 넣을 종목코드
+  → 코드가 비교표 생성, 기준일·정의·면책·근거 문서 부착, 금지 표현 재검사
+  → {answer, contexts, trace} (+ 화면용 comparison_table, thread_id)
+트레이서 콜백: LLM·도구 호출을 단계별로 logs/trace.jsonl 에 기록
 ```
 
 ## 실행 방법
@@ -84,10 +86,13 @@ Invoke-RestMethod -Uri http://localhost:8000/query -Method Post -ContentType "ap
   - 평가 모드는 후보 19종목만 시세가 있음. 평소 모드(실시간 조회)는 TASKS 8-1
 
 ## 핵심 코드 위치
-- `src/agent.py:92` — 메인 에이전트 (`create_agent`)
-- `src/agent.py:127` — `run()`: 에이전트 → 구조화 → 코드 생성 비교표
-- `src/tools.py` — 도메인 도구 (`search_etfs:52`, `check_pension_eligibility:93`, `calc_performance:112`)
-- `src/retriever.py` — RAG 파이프라인 (예정)
+- `src/agent.py:114` — 메인 에이전트 그래프 (`create_agent` + 미들웨어 + 체크포인터)
+- `src/agent.py:215` — `_run()`: 마스킹 → 에이전트 → 구조화 → 코드 생성 비교표
+- `src/tools.py` — 도메인 도구 (`search_etfs:65`, `check_pension_eligibility:103`, `calc_performance:122`, `compare_asset_classes:154`)
+- `src/retriever.py` — RAG 파이프라인 (`get_retriever:50` 하이브리드 검색, `retrieve_docs:80`)
+- `src/guards.py` — 가드레일 (`input_guard:75`, `mask_pii:104`, 미들웨어 `:126`·`:163`·`:190`)
 - `src/etf_data.py:45` — 자산군 매핑 규칙
 - `src/metrics.py:17` — 수익률·변동성 계산
-- `evaluation/run_eval.py:80` — forbidden 코드 검사 대응표
+- `src/api.py:57` — `POST /query`, `src/static/index.html` — 대화형 화면
+- `evaluation/run_eval.py:91` — 수치 정확도 검사, `:123` — forbidden 코드 검사 대응표
+- `evaluation/ragas_eval.py` — RAGAS 4지표
