@@ -34,6 +34,10 @@
 ```bash
 # 한 번에 실행 (가상환경이 없으면 만들고 패키지 설치 → 서버 시작). Git Bash / Linux / macOS
 bash run.sh                  # 화면 http://localhost:8000, 포트 변경: PORT=8001 bash run.sh
+
+# Docker (.env 는 이미지에 넣지 않고 실행할 때 넘긴다)
+docker build -t etf-agent .
+docker run --rm -p 8000:8000 --env-file .env etf-agent
 ```
 
 ```powershell
