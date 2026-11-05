@@ -8,6 +8,7 @@ from config import BASE_DATE
 from etf_data import load_etf_list
 from market import load_market_cap
 from metrics import NOT_AVAILABLE, RETURN_DEFINITION, VOLATILITY_DEFINITION, calc_metrics
+from retriever import retrieve_docs
 from rules import add_eligibility
 
 # 모듈 로드 시 한 번만 읽는다 (CSV + 시가총액 스냅샷)
@@ -140,7 +141,7 @@ def calc_performance(codes: list[str]) -> str:
     })
 
 
-TOOLS = [search_etfs, check_pension_eligibility, calc_performance]
+TOOLS = [search_etfs, check_pension_eligibility, calc_performance, retrieve_docs]
 
 
 if __name__ == "__main__":

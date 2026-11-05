@@ -83,7 +83,7 @@
   S&P500, 나스닥100, KOSPI200, KOFR, CD금리 등 기초지수 설명, 위험 요인, 환헤지(H) 차이를 출처와 함께 정리.
   - 확인: 사용자 검토 완료. 테스트 문항 5·6·11 에 필요한 내용이 들어 있음
 
-- [ ] **3-3. 하이브리드 검색과 `retrieve_docs`**
+- [x] **3-3. 하이브리드 검색과 `retrieve_docs`**
   `src/retriever.py`: `MarkdownHeaderTextSplitter` 로 헤더 단위 분할 → Chroma(Titan 임베딩) + `BM25Retriever`(kiwi 토크나이저) → `EnsembleRetriever` 결합 (`ref/day2_practice/hybrid.py` 구조, 가중치 0.3/0.7에서 시작), `[출처: 파일명]` 포함 반환. 도구 등록.
   - 확인: "KOFR" 검색 1위가 `index_guide.md` 의 KOFR 단락, "레버리지 연금저축" 검색 1위가 `pension_rules.md`
 

@@ -1,5 +1,6 @@
 # agent.py - 연금저축 ETF 비교 에이전트 (ReAct + 구조화 답변) 진입점
 import json
+import re
 import sys
 
 from botocore.config import Config
@@ -26,7 +27,8 @@ SYSTEM_PROMPT = f"""너는 연금저축 계좌로 ETF에 투자하는 사람을 
 규칙:
 - 도구로 조회·계산한 결과만 근거로 답한다. 도구 결과에 없는 종목·수치는 지어내지 말고 없다고 안내한다.
 - 후보를 비교할 때는 search_etfs 로 후보를 찾고, calc_performance 로 수치를 계산한다.
-- 특정 종목의 연금저축 매수 가능 여부는 check_pension_eligibility 로 판정한다.
+- 특정 종목의 연금저축 매수 가능 여부는 check_pension_eligibility 로 판정하고, 그 사유(왜 안 되는지·왜 되는지)는 retrieve_docs 로 매매 규칙 문서를 확인한 내용만 설명한다. 문서에 없는 제한(예: 커버드콜 제한)을 덧붙이지 않는다.
+- 매매 규칙의 근거, 기초지수 정의, 환헤지·위험 요인 설명은 retrieve_docs 로 문서를 찾아 답하고, 답변에 [출처: 파일명] 을 밝힌다. 문서에 없는 규칙·세율·한도는 지어내지 말고 문서에 없다고 안내한다.
 - 수익률·변동성·보수·시가총액 숫자는 답변 문장에 쓰지 않는다. 비교표는 도구 결과로 자동 생성되므로 "비교표 참고"로 가리키고, 문장에는 차이의 성격(환헤지 여부, 보수 높낮이, 상장 기간 등)만 설명한다.
 - 특정 종목을 사라고 권하지 않는다("선택하시기 바랍니다" 같은 권유 표현 포함). 비교와 근거만 제공한다.
 - 미래 수익률을 예측하지 않는다.
@@ -108,6 +110,17 @@ def collect_performance(messages) -> dict[str, dict]:
     return rows
 
 
+def collect_doc_sources(messages) -> list[str]:
+    """retrieve_docs 결과에서 실제로 검색된 문서 조각의 출처를 순서대로 중복 없이 모은다."""
+    found = []
+    for m in messages:
+        if isinstance(m, ToolMessage) and m.name == "retrieve_docs":
+            for label in re.findall(r"\[출처: ([^\]]+)\]", m.content):
+                if f"문서: {label}" not in found:
+                    found.append(f"문서: {label}")
+    return found
+
+
 def build_table(codes: list[str], perf: dict[str, dict]) -> list[TableRow]:
     """도구 결과로 비교표를 만든다. LLM은 종목코드만 고르고 숫자는 여기서 그대로 옮긴다."""
     table = []
@@ -142,6 +155,10 @@ def run(question: str, config: dict | None = None) -> FinalAnswer:
 
     used_tools = sorted({m.name for m in messages if isinstance(m, ToolMessage)})
     sources = [f"도구: {', '.join(used_tools)}"] + DATA_SOURCES if used_tools else []
+    doc_sources = collect_doc_sources(messages)
+    sources += doc_sources
+    if doc_sources:  # 근거 문서는 구조화 단계에서 빠지지 않도록 코드가 붙인다
+        answer += "\n\n[근거 문서] " + " / ".join(s.removeprefix("문서: ") for s in doc_sources)
     return FinalAnswer(answer=answer, comparison_table=table, sources=sources, base_date=BASE_DATE)
 
 

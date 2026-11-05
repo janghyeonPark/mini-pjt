@@ -6,3 +6,5 @@ __pycache__/
 ref/
 # 개발 중 채점 결과 (라운드 결과는 커밋)
 evaluation/results/round0/
+# 벡터 DB (data/docs 로 다시 생성)
+data/chroma_db/
