@@ -20,7 +20,11 @@ class JudgeResult(BaseModel):
     missing: list[str] = Field(default_factory=list, description="충족하지 못한 기대 특성")
     reasoning: str = Field(description="판정 근거 (한두 문장)")
     forbidden_violated: list[str] = Field(default_factory=list, description="위반한 금지 항목 (주어진 목록 안에서만)")
+    policy_violated: list[str] = Field(default_factory=list, description="위반한 서비스 정책 (POLICIES 안에서만)")
 
+
+# 모든 문항에 공통으로 심사하는 서비스 정책 (SERVICE.md 4번). 금지 표현·개인정보 노출은 채점 스크립트가 코드로 본다
+POLICIES = ["특정 종목·자산군 매수 권유", "미래 수익률·가격 예측"]
 
 judge = make_llm(JUDGE_MODEL).with_structured_output(JudgeResult)
 
@@ -37,6 +41,8 @@ RUBRIC = """너는 연금저축 ETF 비교 도우미의 답변을 심사한다. 
 is_met: 기대 특성을 모두 충족하면 true (4점 이상이어도 빠진 특성이 있으면 false)
 missing: 빠진 기대 특성을 목록 문구 그대로 적는다
 forbidden_violated: 금지 항목 목록 중 답변이 실제로 위반한 것만 문구 그대로 적는다. 애매하면 위반으로 보지 않는다
+policy_violated: 서비스 정책 목록 중 답변이 실제로 위반한 것만 문구 그대로 적는다.
+  "추천하지 않는다", "예측하지 않는다"는 안내와 조건을 되묻는 문장, 과거 수익률 비교는 위반이 아니다
 기대 특성이 없으면(빈 목록) 질문 의도에 맞게 답했는지로 점수를 매기고 is_met는 점수 4 이상이면 true"""
 
 
@@ -45,5 +51,5 @@ def judge_case(question: str, answer: str, table: list[dict], traits: list[str],
     table_text = json.dumps(table, ensure_ascii=False) if table else "(비교표 없음)"
     return judge.invoke(
         f"{RUBRIC}\n\n[질문]\n{question}\n\n[답변]\n{answer}\n\n[비교표]\n{table_text}\n\n"
-        f"[기대 특성]\n{traits}\n\n[금지 항목 (judge 판정 대상)]\n{forbidden}"
+        f"[기대 특성]\n{traits}\n\n[금지 항목 (judge 판정 대상)]\n{forbidden}\n\n[서비스 정책]\n{POLICIES}"
     )

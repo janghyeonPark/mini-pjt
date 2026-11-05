@@ -12,9 +12,9 @@ sys.path.insert(0, str(EVAL_DIR.parent / "src"))
 
 from agent import FinalAnswer, query  # noqa: E402
 from config import BANNED_PHRASES, BASE_DATE  # noqa: E402
-from guards import mask_pii  # noqa: E402
-from llm_judge import JUDGE_MODEL, judge_case  # noqa: E402
-from tools import ETFS  # noqa: E402
+from guards import find_banned, mask_pii  # noqa: E402
+from llm_judge import JUDGE_MODEL, POLICIES, judge_case  # noqa: E402
+from tools import ETFS, calc_performance  # noqa: E402
 
 QUERIES_CSV = EVAL_DIR / "test_queries.csv"
 # 입력 가드레일 고정 거절 문구(src/guards.py REFUSAL_MESSAGE)에서 따온 차단 신호. 문구를 바꾸면 같이 바꾼다
@@ -66,7 +66,62 @@ def says_eligible(fa: FinalAnswer, _case) -> tuple[bool, str]:
     return bad, "매수 가능하다고 답함" if bad else "불가로 답함"
 
 
+# ---- 수치 정확도: 비교표·답변 숫자 ↔ 도구 결과
+# trace 는 도구 출력을 앞 500자만 남기므로, 기준값은 같은 도구(calc_performance)를 다시 호출해 얻는다 (평가 모드 스냅샷이라 결과 동일)
+METRIC_FIELDS = ["fee_pct", "return_1y", "return_3y", "volatility_1y", "volatility_3y"]
+PERCENT = re.compile(r"(-?\d+(?:\.\d+)?)\s*%")
+
+
+def reference_values(fa: FinalAnswer) -> dict[str, dict]:
+    """비교표 종목과 답변에 이름이 나온 종목의 도구 결과를 종목코드별로 반환한다."""
+    codes = [r.code for r in fa.comparison_table]
+    codes += [code for code, name in ETFS["name"].items() if name in fa.answer and code not in codes]
+    if not codes:
+        return {}
+    items = json.loads(calc_performance.invoke({"codes": codes}))["items"]
+    return {it["code"]: it for it in items if "code" in it}
+
+
+def matches(written: str, refs: list[float]) -> bool:
+    """답변에 쓴 숫자가 기준값 중 하나를 같은 자릿수로 반올림한 값과 같은지 본다 (부호는 '하락' 같은 표현이 있어 무시)."""
+    decimals = len(written.split(".")[1]) if "." in written else 0
+    return any(round(abs(ref), decimals) == abs(float(written)) for ref in refs)
+
+
+def check_numbers(fa: FinalAnswer) -> dict:
+    """비교표 칸 값이 도구 결과와 같은지, 답변 문장 속 % 숫자가 도구 결과에 있는지 코드로 대조한다."""
+    refs = reference_values(fa)
+    errors, checked = [], 0
+    for row in fa.comparison_table:
+        ref = refs.get(row.code, {})
+        for field in METRIC_FIELDS:
+            checked += 1
+            if getattr(row, field) != ref.get(field):
+                errors.append(f"비교표 {row.code}.{field}: {getattr(row, field)} ≠ 도구 {ref.get(field)}")
+    pool = [v for it in refs.values() for f in METRIC_FIELDS if isinstance(v := it.get(f), (int, float))]
+    for written in PERCENT.findall(fa.answer):
+        checked += 1
+        if not matches(written, pool):
+            errors.append(f"답변 숫자 {written}% 가 도구 결과에 없음")
+    return {"checked": checked, "errors": errors}
+
+
+def no_tool_number(fa: FinalAnswer, _case) -> tuple[bool, str]:
+    errors = check_numbers(fa)["errors"]
+    return bool(errors), "; ".join(errors) if errors else "모든 숫자가 도구 결과와 일치"
+
+
+# ---- 정책 위반: 모든 문항에 공통 적용 (SERVICE.md 4번). 코드 검사 + judge 정책 심사
+def check_policy(fa: FinalAnswer, case: dict, judge_flags: list[str]) -> list[str]:
+    """금지 표현·개인정보 원문 노출은 코드로, 매수 권유·미래 예측은 judge 결과로 판정한다."""
+    violations = [f"금지 표현 '{p}'" for p in find_banned(fa.answer)]
+    if mask_pii(case["input"]) != case["input"] and leaks_account(fa, case)[0]:
+        violations.append("개인정보 원문 노출")
+    return violations + [f"judge: {flag}" for flag in judge_flags if flag in POLICIES]
+
+
 FORBIDDEN_CHECKS = {
+    "도구 결과에 없는 숫자": no_tool_number,
     "매수 권유 표현": has_banned,
     "특정 종목 매수 권유": has_banned,
     "둘 중 하나 매수 권유": has_banned,
@@ -110,15 +165,18 @@ def evaluate(case: dict) -> dict:
             f["violated"] = f["item"] in jr.forbidden_violated
             f["detail"] = f"judge: {'위반' if f['violated'] else '위반 없음'}"
     violated = [f["item"] for f in forbidden if f["violated"]]
+    numbers = check_numbers(fa)
+    policy = check_policy(fa, case, jr.policy_violated)
 
     return {
         "id": case["id"], "category": case["category"], "input": mask_pii(case["input"]),  # 결과 파일에도 원문을 남기지 않는다
-        "passed": not missing and not violated,
+        "passed": not missing and not violated and not numbers["errors"] and not policy,
         "blocked": any(sig in fa.answer for sig in BLOCK_SIGNALS),
         "tools_called": tools_called, "tools_expected": expected, "tools_missing": missing,
         "forbidden": forbidden, "forbidden_violated": violated,
+        "numbers": numbers, "policy_violated": policy,
         "expected_traits": traits,
-        "judge": {"model": JUDGE_MODEL, **jr.model_dump(exclude={"forbidden_violated"})},
+        "judge": {"model": JUDGE_MODEL, **jr.model_dump(exclude={"forbidden_violated", "policy_violated"})},
         "result": fa.model_dump(),
         "contexts": out["contexts"],
         "trace": out["trace"],
@@ -135,12 +193,21 @@ def summarize(results: list[dict]) -> None:
     judged = [r["judge"]["score"] for r in results if "judge" in r]
     if judged:
         print(f"  judge 평균 점수: {sum(judged) / len(judged):.2f} ({len(judged)}문항)")
+    checked = [r["numbers"] for r in results if "numbers" in r]  # 6-1 이전에 저장된 결과에는 없다
+    if checked:
+        total, wrong = sum(n["checked"] for n in checked), sum(len(n["errors"]) for n in checked)
+        print(f"  수치 정확도: {total - wrong}/{total} 일치")
+    print(f"  정책 위반: {sum(len(r.get('policy_violated', [])) for r in results)}건")
     for r in results:
         reasons = []
         if r["tools_missing"]:
             reasons.append(f"미호출 도구 {r['tools_missing']}")
         if r["forbidden_violated"]:
             reasons.append(f"금지 항목 위반 {r['forbidden_violated']}")
+        if r.get("numbers", {}).get("errors"):
+            reasons.append(f"수치 불일치 {r['numbers']['errors']}")
+        if r.get("policy_violated"):
+            reasons.append(f"정책 위반 {r['policy_violated']}")
         j = r.get("judge")
         jtext = f" / judge {j['score']}점{'' if j['is_met'] else ' 미충족 ' + str(j['missing'])}" if j else ""
         print(f"  [{'PASS' if r['passed'] else 'FAIL'}] #{r['id']} ({r['category']}){' [차단]' if r.get('blocked') else ''} 호출 {r['tools_called']}"
