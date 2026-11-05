@@ -7,8 +7,8 @@ load_dotenv()
 
 # 모델 (역할 분리: 에이전트 = Sonnet, 가드레일·judge·RAGAS = Haiku)
 REGION = "us-east-1"
-# us. 프로필이 일일 토큰 한도에 걸려(2026-11-05) 같은 모델의 global. 프로필로 전환
-AGENT_MODEL = "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+# Sonnet 4.5 가 us.·global. 모두 일일 토큰 한도에 걸려(2026-11-05) 1차 라운드부터 Sonnet 4.6 으로 고정. 라운드 간 바꾸지 않는다
+AGENT_MODEL = "global.anthropic.claude-sonnet-4-6"
 AUX_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 EMBED_MODEL = "amazon.titan-embed-text-v2:0"
 

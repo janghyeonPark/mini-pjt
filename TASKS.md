@@ -139,7 +139,7 @@
   `evaluation/ragas_references.csv` 작성(문서 근거 문항만), ragas import 호환 shim, Haiku·Titan 래핑으로 4지표 계산.
   - 확인: `--ids 3,5` 로 4지표 숫자가 출력됨
 
-- [ ] **6-3. 1차 라운드 리포트**
+- [x] **6-3. 1차 라운드 리포트**
   평가 모드(기준일 2026-11-03)로 15문항 전체 실행 → `evaluation/round1_report.md` (CLAUDE.md 양식 7항목).
   - 확인: 리포트에 통과율·수치 정확도·정책 위반·judge·RAGAS·실패 원인이 모두 채워짐. 커밋
 

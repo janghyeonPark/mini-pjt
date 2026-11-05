@@ -16,7 +16,7 @@
 ```
 화면(index.html) / POST /query  ──  FastAPI (src/api.py)
   → 개인정보 마스킹 (계좌번호·주민번호·전화·이메일)
-  → create_agent (Sonnet 4.5) + 미들웨어 [입력 가드레일 → 도구 호출 제한 → 출력 가드레일 → 로깅] + 체크포인터
+  → create_agent (Sonnet 4.6) + 미들웨어 [입력 가드레일 → 도구 호출 제한 → 출력 가드레일 → 로깅] + 체크포인터
        ├─ search_etfs               KRX ETF 목록 CSV + 자산군 매핑 + 매수 가능 판정 + 시가총액 정렬
        ├─ check_pension_eligibility 추적배수 규칙 (레버리지·인버스 불가) + 근거 출처
        ├─ calc_performance          pykrx 시세 스냅샷 → 1년·3년 가격수익률·연환산 변동성
@@ -58,7 +58,7 @@ Invoke-RestMethod -Uri http://localhost:8000/query -Method Post -ContentType "ap
 - answer_relevancy:
 
 ## 인-아웃 세트 통과율 (자체 평가)
-- 1차 (Day 9 종료): XX / 15 통과
+- 1차 (Day 9 종료): 10 / 15 통과
 - 2차 (Day 10 개선 후): XX / 15 통과
 - 개선폭: +XX 건 (주요 개선 사항: ...)
 

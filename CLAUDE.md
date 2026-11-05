@@ -122,7 +122,7 @@ pip install -r requirements.txt
   - Nova: `us.amazon.nova-pro-v1:0`, `us.amazon.nova-lite-v1:0`, `us.`/`global.amazon.nova-2-lite-v1:0`
 - 임베딩: `BedrockEmbeddings(model_id="amazon.titan-embed-text-v2:0", region_name="us-east-1")` (1024차원, 호출 확인됨)
 - **Bedrock 일일 토큰 한도**(공용 계정, `ThrottlingException: Too many tokens per day`)에 실제로 걸린 적이 있다. 대응:
-  - 모델 역할 분리: 에이전트 = Sonnet 4.5, 가드레일 LLM 판별·LLM-as-Judge·RAGAS = Haiku 4.5 (`us.anthropic.claude-haiku-4-5-20251001-v1:0`). 모델 ID는 설정 상수 한곳에 둔다
+  - 모델 역할 분리: 에이전트 = Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`, 4.5 한도 초과로 1차 라운드부터 고정), 가드레일 LLM 판별·LLM-as-Judge·RAGAS = Haiku 4.5 (`us.anthropic.claude-haiku-4-5-20251001-v1:0`). 모델 ID는 설정 상수 한곳에 둔다
   - Bedrock 호출은 지수 백오프로 재시도한다
   - 평가 스크립트는 문항별 결과를 즉시 파일에 저장하고, 재실행 시 끝난 문항은 건너뛴다
   - 개발 중 확인은 문항 1~2개만 돌리고, 15문항 전체 실행은 라운드 리포트를 낼 때만 한다
