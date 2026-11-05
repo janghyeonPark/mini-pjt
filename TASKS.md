@@ -62,7 +62,7 @@
 
 ## 묶음 2 · 평가 기준선 (기준을 먼저)
 
-- [ ] **2-1. 채점 스크립트 (코드 판정)**
+- [x] **2-1. 채점 스크립트 (코드 판정)**
   `evaluation/run_eval.py`: `test_queries.csv` 문항별 실행, 콜백으로 실제 호출 도구 수집, `expected_tools`·`forbidden` 판정, 문항별 결과 즉시 저장·재실행 시 건너뛰기, `--ids` 로 일부 문항만 실행.
   - 확인: `python evaluation/run_eval.py --ids 1,4` → 두 문항 판정 결과와 저장 파일 생성. 다시 실행하면 건너뜀
 
