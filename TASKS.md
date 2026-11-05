@@ -54,7 +54,7 @@
   `src/tools.py`: `search_etfs`, `check_pension_eligibility`, `calc_performance`. 독스트링에 언제 쓰고 언제 쓰지 않는지 명시 (`ref/mcp_server.py` 스타일). `search_etfs` 는 매수 가능 종목만, 시가총액 상위 5개 + 전체 개수.
   - 확인: 세 도구를 파이썬에서 직접 호출해 결과 출력. "S&P500" 검색 → "총 N개 중 상위 5개"
 
-- [ ] **1-9. 단일 에이전트와 구조화 답변**
+- [x] **1-9. 단일 에이전트와 구조화 답변**
   `src/agent.py`: 도구 3개를 쓰는 ReAct 에이전트. 최종 답변은 `{answer, comparison_table, sources, base_date}`, **비교표는 도구 결과로 코드가 생성**하고 LLM은 `answer` 만 쓴다.
   - 확인: `python src/agent.py "미국 S&P500 추종 ETF 중에 연금저축으로 살 수 있는 거 비교해줘"` → 비교표 5행, 기준일, 수익률 정의 표기. 비교표 숫자가 1-7 결과와 같음
 
