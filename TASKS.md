@@ -155,7 +155,7 @@
   15문항 전체 재실행 → `evaluation/round2_report.md`, 1차 대비 개선폭 명시. 문항 밖 질문 몇 개를 직접 던져 과적합 여부 확인.
   - 확인: 리포트 7번 항목에 개선폭(+N건)과 수정 사항
 
-- [ ] **7-3. README와 제출 정리**
+- [x] **7-3. README와 제출 정리**
   `README.md` (CLAUDE.md의 README 구성), 실행 방법, `requirements.txt` 정리. (선택) `run.sh`, `Dockerfile`.
   - 확인: 새 가상환경에서 `pip install -r requirements.txt` → API 실행 → 문항 1 응답까지 README 순서대로 재현됨
 
